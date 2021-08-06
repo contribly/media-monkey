@@ -2,18 +2,19 @@ package controllers
 
 import java.io.File
 import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorSystem
 import futures.Retry
+
 import javax.inject.Inject
 import model._
 import org.apache.commons.io.FileUtils
 import org.joda.time.DateTime
 import play.api.Logger
 import play.api.http.FileMimeTypes
+import play.api.libs.Files
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
-import play.api.mvc.{Action, BodyParsers, Controller}
+import play.api.mvc.{Action, BaseController, BodyParsers, Controller, ControllerComponents, MultipartFormData}
 import services.exiftool.ExiftoolService
 import services.facedetection.FaceDetector
 import services.geo.ExifLocationExtractor
@@ -25,13 +26,26 @@ import services.video.VideoService
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 
-class MetaController @Inject()(val akkaSystem: ActorSystem, ws: WSClient, val tikaService: TikaService,
-                               imageService: ImageService, videoService: VideoService, exiftoolService: ExiftoolService,
-                               val mediainfoService: MediainfoService, faceDetector: FaceDetector)(implicit fileMimeTypes: FileMimeTypes) extends Controller with MediainfoInterpreter with Retry with MetadataFunctions with ExifLocationExtractor with JsonResponses with ReasonableWaitTimes {
+class MetaController @Inject()(
+    val akkaSystem: ActorSystem,
+    ws: WSClient,
+    val tikaService: TikaService,
+    imageService: ImageService,
+    exiftoolService: ExiftoolService,
+    val mediainfoService: MediainfoService,
+    faceDetector: FaceDetector
+)(implicit fileMimeTypes: FileMimeTypes, val controllerComponents: ControllerComponents)
+    extends BaseController
+    with MediainfoInterpreter
+    with Retry
+    with MetadataFunctions
+    with ExifLocationExtractor
+    with JsonResponses
+    with ReasonableWaitTimes {
 
   val thirtySeconds = Duration(30, TimeUnit.SECONDS)
 
-  def tag = Action.async(BodyParsers.parse.multipartFormData) { request =>
+  def tag: Action[MultipartFormData[Files.TemporaryFile]] = Action.async(parse.multipartFormData) { request =>
 
     implicit val executionContext = akkaSystem.dispatchers.lookup("meta-processing-context")
 
@@ -81,7 +95,7 @@ class MetaController @Inject()(val akkaSystem: ActorSystem, ws: WSClient, val ti
     }
   }
 
-  def defectFaces(callback: String) = Action.async(BodyParsers.parse.temporaryFile) { request =>
+  def defectFaces(callback: String): Action[Files.TemporaryFile] = Action.async(parse.temporaryFile) { request =>
 
     def asJson(dfs: Seq[DetectedFace]): JsValue = {
       implicit val pw = Json.writes[Point]
@@ -115,12 +129,12 @@ class MetaController @Inject()(val akkaSystem: ActorSystem, ws: WSClient, val ti
     Future.successful(Accepted(JsonAccepted))
   }
 
-  def meta(callback: Option[String]) = Action.async(BodyParsers.parse.temporaryFile) { request =>
+  def meta(callback: Option[String]): Action[Files.TemporaryFile] = Action.async(parse.temporaryFile) { request =>
     val sourceFile = request.body
 
     implicit val executionContext = akkaSystem.dispatchers.lookup("meta-processing-context")
 
-    val metadata = {
+    val metadata: Future[Option[Metadata]] = {
       Logger.info("Processing metadate for file: " + sourceFile.file)
 
       tikaService.meta(sourceFile.file).flatMap { tmdo =>
@@ -158,9 +172,9 @@ class MetaController @Inject()(val akkaSystem: ActorSystem, ws: WSClient, val ti
                 val trackMetadata: Option[Seq[(String, String)]] = contentTypeSpecificAttributes.flatMap { ctsa =>
                   ctsa.tracks.map { ts =>
                     val tracksToExportAsMetadata = Set("General", "Video")
-                    ts.filter(t => tracksToExportAsMetadata contains t.`type`).map { t =>
+                    ts.filter(t => tracksToExportAsMetadata contains t.`type`).flatMap { t =>
                       t.fields.toSeq
-                    }.flatten
+                    }
                   }
                 }
 

@@ -108,11 +108,6 @@ trait MetadataFunctions extends MediainfoInterpreter {
   }
 
   def inferVideoSpecificAttributes(file: File): Future[FormatSpecificAttributes] = {
-
-    def parseRotation(r: String): Int = {
-      r.replaceAll("[^\\d]", "").toInt
-    }
-
     mediainfoService.mediainfo(file).map { mits =>
       val videoTrackDimensions = videoDimensions(mits)
       val rotation = inferRotation(mits)

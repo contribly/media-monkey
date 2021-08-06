@@ -21,11 +21,7 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
     implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
 
     mediainfoService.mediainfo(input).flatMap { mediainfo =>
-      val rotationToApply = rotation.getOrElse {
-        val ir = inferRotation(mediainfo)
-        Logger.info("Applying rotation infered from mediainfo: " + ir)
-        ir
-      }
+      val rotationToApply = rotation.getOrElse(0)
 
       Future {
         val output: File = File.createTempFile("thumbnail", "." + outputFormat)
@@ -35,14 +31,12 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
             (w, h)
           }
         )
-        val sourceDimensions: Option[(Int, Int)] = videoDimensions(mediainfo)
 
         val avconvCmd = avconvInput(input, mediainfo) ++
-          sizeParameters(width, height) ++
-          rotationAndPaddingParameters(rotationToApply, padding(sourceDimensions, outputSize, sourceAspectRatio, rotationToApply), None) ++
+          vfParametersFor(rotationToApply, outputSize) ++
           Seq("-ss", "00:00:00", "-r", "1", "-an", "-vframes", "1", output.getAbsolutePath)
 
-        Logger.info("avconv command: " + avconvCmd)
+        Logger.info("ffmpeg command: " + avconvCmd)
 
         val process: Process = avconvCmd.run(logger)
         val exitValue: Int = process.exitValue() // Blocks until the process completes
@@ -60,63 +54,6 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
     }
   }
 
-  def strip(input: File, outputFormat: String, width: Int, height: Int, sourceAspectRatio: Option[Double], rotation: Option[Int]): Future[Option[File]] = {
-    implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
-    mediainfoService.mediainfo(input).flatMap { mediainfo =>
-      val rotationToApply = rotation.getOrElse {
-        val ir = inferRotation(mediainfo)
-        Logger.info("Applying rotation inferred from mediainfo: " + ir)
-        ir
-      }
-
-      Future {
-        val output: File = File.createTempFile("strip", "")
-
-        val sourceDimensions: Option[(Int, Int)] = videoDimensions(mediainfo)
-
-        val avconvCmd = avconvInput(input, mediainfo) ++
-          sizeParameters(Some(width), Some(height)) ++
-          Seq("-ss", "00:00:00", "-an") ++
-          rotationAndPaddingParameters(rotationToApply, padding(sourceDimensions, Some(width, height), sourceAspectRatio, rotationToApply), Some("fps=1")) ++
-          Seq(output.getAbsolutePath + "-%6d." + outputFormat)
-
-        Logger.info("avconv command: " + avconvCmd)
-        val process: Process = avconvCmd.run(logger)
-        val exitValue: Int = process.exitValue() // Blocks until the process completes
-
-        if (exitValue == 0) {
-          Logger.info("Strip files output to: " + output.getAbsolutePath)
-
-          try {
-            def appendImagesOperation(files: String, outputPath: String): IMOperation = {
-              val op: IMOperation = new IMOperation()
-              op.addImage(files)
-              op.appendHorizontally()
-              op.addImage(outputPath)
-              op
-            }
-
-            val cmd: ConvertCmd = new ConvertCmd()
-            cmd.run(appendImagesOperation(output.getAbsolutePath + "-*." + outputFormat, output.getAbsolutePath))
-            Logger.info("Completed ImageMagik operation output to: " + output.getAbsolutePath)
-            Some(output)
-
-          } catch {
-            case e: Exception =>
-              Logger.error("Exception while executing IM operation", e)
-              output.delete
-              None
-          }
-
-        } else {
-          Logger.warn("avconv process failed")
-          output.delete
-          None
-        }
-      }
-    }
-  }
-
   def audio(input: File): Future[Option[File]] = {
     implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
 
@@ -125,7 +62,7 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
 
       val avconvCmd = avconvInput(input, mediainfo) ++ Seq("-vn", output.getAbsolutePath)
       Logger.info("Processing video audio track")
-      Logger.info("avconv command: " + avconvCmd)
+      Logger.info("avconv command: " + avconvCmd.mkString(" "))
 
       if (avconvCmd.run(logger).exitValue() == 0) {
         Logger.info("Transcoded video output to: " + output.getAbsolutePath)
@@ -144,18 +81,17 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
     implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
 
     mediainfoService.mediainfo(input).flatMap { mediainfo =>
-      val rotationToApply = rotation.getOrElse(inferRotation(mediainfo))
+      val rotationToApply = rotation.getOrElse(0)
       val sourceDimensions: Option[(Int, Int)] = videoDimensions(mediainfo)
       val possiblePadding = padding(sourceDimensions, outputSize, sourceAspectRatio, rotationToApply)
 
       Future {
         val outputFile = File.createTempFile("transcoded", "." + outputFormat)
         val avconvCmd = avconvInput(input, mediainfo) ++
-          sizeParameters(outputSize.map(os => os._1), outputSize.map(os => os._2)) ++
-          rotationAndPaddingParameters(rotationToApply, possiblePadding, None) ++
+          vfParametersFor(rotationToApply, outputSize) ++
           Seq("-b:a", "128k", "-strict", "experimental", outputFile.getAbsolutePath)
 
-        Logger.info("avconv command: " + avconvCmd)
+        Logger.info("avconv command: " + avconvCmd.mkString(" "))
 
         val process: Process = avconvCmd.run(logger)
         val exitValue: Int = process.exitValue() // Blocks until the process completes
@@ -180,7 +116,7 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
     map.fold(Seq[String]())(s => s)
   }
 
-  private def rotationAndPaddingParameters(rotation: Int, possiblePadding: Option[String], additionalVfArguments: Option[String]): Seq[String] = {
+  private def vfParametersFor(rotation: Int, outputSize: Option[(Int, Int)]): Seq[String] = {
 
     val RotationTransforms = Map(
       90 -> "transpose=1",
@@ -189,13 +125,20 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
     )
 
     val possibleRotation: Option[String] = RotationTransforms.get(rotation)
-    val vfParameters: Seq[String] = Seq(possibleRotation, possiblePadding, additionalVfArguments).flatten
+    val scaleToOutputSize: Option[String] = outputSize.map { os =>
+      "scale=" + os._1 + ":" + os._2 + ":force_original_aspect_ratio=decrease"
+    }
+    val padding: Option[String] = outputSize.map { os =>
+      val paddingColour = "black"
+      "pad=" + os._1 + ":" + os._2 + ":(ow-iw)/2:(oh-ih)/2:" + paddingColour
+    }
+    val vfParameters: Seq[String] = Seq(possibleRotation, scaleToOutputSize, padding).flatten
 
     if (vfParameters.nonEmpty) Seq("-vf", vfParameters.mkString(",")) else Seq()
   }
 
   private def avconvInput(input: File, mediainfo: Option[Seq[Track]]): Seq[String] = {
-    Seq("avconv", "-y") ++ videoCodec(mediainfo).flatMap(c => if (c == "WMV3") Some(Seq("-c:v", "wmv3")) else None).getOrElse(Seq()) ++ Seq("-i", input.getAbsolutePath)
+    Seq("ffmpeg", "-y") ++ videoCodec(mediainfo).flatMap(c => if (c == "WMV3") Some(Seq("-c:v", "wmv3")) else None).getOrElse(Seq()) ++ Seq("-i", input.getAbsolutePath)
   }
 
 }
