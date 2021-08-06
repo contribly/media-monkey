@@ -2,17 +2,18 @@ package controllers
 
 import java.io.File
 import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.FileIO
 import futures.Retry
+
 import javax.inject.Inject
 import org.joda.time.DateTime
 import play.api.Logger
 import play.api.http.{FileMimeTypes, HttpEntity}
+import play.api.libs.Files
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
-import play.api.mvc.{Action, BodyParsers, Controller, Result}
+import play.api.mvc.{AbstractController, Action, BaseController, BodyParsers, Controller, ControllerComponents, Result}
 import play.libs.ws.DefaultBodyWritables
 import services.images.ImageService
 import services.mediainfo.{MediainfoInterpreter, MediainfoService}
@@ -22,8 +23,18 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future}
 
-class Application @Inject()(val akkaSystem: ActorSystem, ws: WSClient, videoService: VideoService, imageService: ImageService,
-                            mediainfoService: MediainfoService)(implicit fileMimeTypes: FileMimeTypes) extends Controller with Retry with MediainfoInterpreter with JsonResponses with ReasonableWaitTimes {
+class Application @Inject()(
+    val akkaSystem: ActorSystem,
+    ws: WSClient,
+    videoService: VideoService,
+    imageService: ImageService,
+    mediainfoService: MediainfoService
+)(implicit fileMimeTypes: FileMimeTypes, val controllerComponents: ControllerComponents)
+    extends BaseController
+    with Retry
+    with MediainfoInterpreter
+    with JsonResponses
+    with ReasonableWaitTimes {
 
   val thirtySeconds = Duration(30, TimeUnit.SECONDS)
 
@@ -38,7 +49,7 @@ class Application @Inject()(val akkaSystem: ActorSystem, ws: WSClient, videoServ
 
   val UnsupportedOutputFormatRequested = "Unsupported output format requested"
 
-  def crop(width: Int, height: Int, x: Int, y: Int) = Action.async(BodyParsers.parse.temporaryFile) { request =>
+  def crop(width: Int, height: Int, x: Int, y: Int): Action[Files.TemporaryFile] = Action.async(parse.temporaryFile) { request =>
 
     val sourceFile = request.body
 
@@ -50,7 +61,7 @@ class Application @Inject()(val akkaSystem: ActorSystem, ws: WSClient, videoServ
       val eventualResult = imageService.cropImage(sourceFile.file, width, height, x, y, of.fileExtension).flatMap { ro =>
         sourceFile.delete
 
-        ro.map{ r =>
+        ro.map { r =>
           imageService.info(r).map { dimensions =>
             Some(r, Some(dimensions), of)
           }
@@ -61,7 +72,14 @@ class Application @Inject()(val akkaSystem: ActorSystem, ws: WSClient, videoServ
     }
   }
 
-  def scale(w: Option[Int], h: Option[Int], rotate: Option[Int], callback: Option[String], fill: Option[Boolean], gravity: Option[String]) = Action.async(BodyParsers.parse.temporaryFile) { request =>
+  def scale(
+      w: Option[Int],
+      h: Option[Int],
+      rotate: Option[Int],
+      callback: Option[String],
+      fill: Option[Boolean],
+      gravity: Option[String]
+  ): Action[Files.TemporaryFile] = Action.async(parse.temporaryFile) { request =>
     val width = w
     val height = h
     val rotationToApply = rotate.getOrElse(0)
@@ -87,32 +105,10 @@ class Application @Inject()(val akkaSystem: ActorSystem, ws: WSClient, videoServ
     }
   }
 
-  def videoStrip(w: Option[Int], h: Option[Int], callback: Option[String], rotate: Option[Int], aspectRatio: Option[Double]) = Action.async(BodyParsers.parse.temporaryFile) { request =>
-    val width = w.getOrElse(320)
-    val height = h.getOrElse(180)
-
-    implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
-
-    inferOutputTypeFromAcceptHeader(request.headers.get("Accept"), SupportedImageOutputFormats).fold(Future.successful(BadRequest(UnsupportedOutputFormatRequested))) { of =>
-      val sourceFile = request.body
-      val eventualResult = videoService.strip(sourceFile.file, of.fileExtension, width, height, aspectRatio, rotate).flatMap { ro =>
-        sourceFile.delete
-
-        ro.map { r =>
-          imageService.info(r).map { dimensions =>
-            Some(r, Some(dimensions), of)
-          }
-        }.getOrElse(Future.successful(None))
-      }
-
-      handleResult(eventualResult, callback, videoProcessingExecutionContext)
-    }
-  }
-
   def videoAudio(callback: Option[String]) = Action.async(BodyParsers.parse.temporaryFile) { request =>
     val sourceFile = request.body
 
-    implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
+    val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
 
     val eventualResult = videoService.audio(sourceFile.file).map { ro =>
       sourceFile.delete
@@ -129,7 +125,7 @@ class Application @Inject()(val akkaSystem: ActorSystem, ws: WSClient, videoServ
   def videoTranscode(width: Option[Int], height: Option[Int], callback: Option[String], rotate: Option[Int], aspectRatio: Option[Double]) = Action.async(BodyParsers.parse.temporaryFile) { request =>
     val sourceFile = request.body
 
-    implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
+    val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
 
     inferOutputTypeFromAcceptHeader(request.headers.get("Accept"), SupportedVideoOutputFormats).fold(Future.successful(BadRequest(UnsupportedOutputFormatRequested))) { of =>
 
@@ -156,7 +152,7 @@ class Application @Inject()(val akkaSystem: ActorSystem, ws: WSClient, videoServ
         videoService.transcode(sourceFile.file, of.fileExtension, outputSize, aspectRatio, rotate).flatMap { ro =>
           sourceFile.delete
 
-          ro.map{ r =>
+          ro.map { r =>
             mediainfoService.mediainfo(r).map { mi =>
               Some(r, videoDimensions(mi), of)
             }
@@ -188,7 +184,7 @@ class Application @Inject()(val akkaSystem: ActorSystem, ws: WSClient, videoServ
     }
 
     callback.fold {
-      implicit val ec = executionContext
+      val ec = executionContext
 
       eventualResult.map { ro =>
         ro.fold {
@@ -206,7 +202,7 @@ class Application @Inject()(val akkaSystem: ActorSystem, ws: WSClient, videoServ
       }(ec)
 
     } { c =>
-      implicit val ec = executionContext
+      val ec = executionContext
 
       eventualResult.map { ro =>
         Logger.info("Mapping")

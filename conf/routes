@@ -6,5 +6,4 @@ POST        /crop               controllers.Application.crop(width: Int, height:
 POST        /scale              controllers.Application.scale(width: Option[Int], height: Option[Int], rotate: Option[Int], callback: Option[String], fill: Option[Boolean], gravity: Option[String])
 
 POST        /video/transcode    controllers.Application.videoTranscode(width: Option[Int], height: Option[Int], callback: Option[String], rotate: Option[Int], aspectRatio: Option[Double])
-POST        /video/strip        controllers.Application.videoStrip(width: Option[Int], height: Option[Int], callback: Option[String], rotate: Option[Int], aspectRatio: Option[Double])
 POST        /video/audio        controllers.Application.videoAudio(callback: Option[String])

@@ -35,11 +35,7 @@ trait MediainfoInterpreter {
   }
 
   def inferRotation(mediainfoTracks: Option[Seq[Track]]): Int = {
-
-    def parseRotation(r: String): Int = {
-      r.replaceAll("[^\\d]", "").toInt
-    }
-
+    def parseRotation(r: String): Int = r.toDouble.toInt
     mediainfoTracks.flatMap(ts => ts.find(t => t.`type` == Video).flatMap(i => i.fields.get(Rotation))).fold(0)(mir => parseRotation(mir))
   }
 
