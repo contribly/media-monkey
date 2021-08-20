@@ -31,7 +31,7 @@ enablePlugins(GitVersioning)
 
 enablePlugins(DockerPlugin)
 import com.typesafe.sbt.packager.docker._
-dockerBaseImage := "debian:buster"
+dockerBaseImage := "ubuntu"
 dockerCommands ++= Seq(
   Cmd("USER", "root"),
   ExecCmd("RUN", "apt-get", "update"),
