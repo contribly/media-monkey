@@ -22,7 +22,8 @@ trait MetadataFunctions extends MediainfoInterpreter {
     "image/x-ms-bmp",
     "image/tiff",
     "image/webp",
-    "image/heic"
+    "image/heic",
+    "image/heif"
   )
 
   private val RecognisedVideoTypes = Seq(
