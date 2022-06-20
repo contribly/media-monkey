@@ -158,6 +158,8 @@ class MetaController @Inject()(
                     Future.successful(metadata.map(md => (inferImageSpecificAttributes(md))))
                   case MediaType.Video =>
                     inferVideoSpecificAttributes(file).map(i => Some(i))
+                  case MediaType.Audio =>
+                    Future.successful(metadata.map(md => (inferAudioSpecificAttributes(md))))
                   case _ =>
                     Future.successful(None)
                 }
