@@ -2,39 +2,36 @@ package controllers
 
 import java.io.File
 import java.util.concurrent.TimeUnit
+
 import akka.actor.ActorSystem
 import futures.Retry
-
 import javax.inject.Inject
 import model._
 import org.apache.commons.io.FileUtils
-import org.joda.time.DateTime
 import play.api.Logger
 import play.api.http.FileMimeTypes
 import play.api.libs.Files
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
-import play.api.mvc.{Action, BaseController, BodyParsers, Controller, ControllerComponents, MultipartFormData}
+import play.api.mvc.{Action, BaseController, ControllerComponents, MultipartFormData}
 import services.exiftool.ExiftoolService
 import services.facedetection.FaceDetector
 import services.geo.ExifLocationExtractor
 import services.images.ImageService
 import services.mediainfo.{MediainfoInterpreter, MediainfoService}
 import services.tika.TikaService
-import services.video.VideoService
 
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 
 class MetaController @Inject()(
-    val akkaSystem: ActorSystem,
     ws: WSClient,
     val tikaService: TikaService,
     imageService: ImageService,
     exiftoolService: ExiftoolService,
     val mediainfoService: MediainfoService,
     faceDetector: FaceDetector
-)(implicit fileMimeTypes: FileMimeTypes, val controllerComponents: ControllerComponents)
+)(implicit val controllerComponents: ControllerComponents, val akkaSystem: ActorSystem)
     extends BaseController
     with MediainfoInterpreter
     with Retry
@@ -135,18 +132,18 @@ class MetaController @Inject()(
     implicit val executionContext = akkaSystem.dispatchers.lookup("meta-processing-context")
 
     val metadata: Future[Option[Metadata]] = {
-      Logger.info("Processing metadate for file: " + sourceFile.file)
+      Logger.info("Processing metadata for file: " + sourceFile.path.toFile)
 
-      tikaService.meta(sourceFile.file).flatMap { tmdo =>
+      tikaService.meta(sourceFile.path.toFile).flatMap {  tmdo =>
         val tikaContentType = tmdo.flatMap(md => md.get(CONTENT_TYPE))
         val eventualContentType = tikaContentType.fold {
-          exiftoolService.contentType(sourceFile.file)
+          exiftoolService.contentType(sourceFile.path.toFile)
         }(ct => Future.successful(Some(ct)))
 
         eventualContentType.flatMap { contentType =>
 
           contentType.map { ct =>
-            val summary = summarise(ct, sourceFile.file)
+            val summary = summarise(ct, sourceFile.path.toFile)
 
             summary.`type`.fold {
               sourceFile.delete
@@ -155,18 +152,18 @@ class MetaController @Inject()(
 
             } { t =>
 
-              def inferContentTypeSpecificAttributes(`type`: String, file: File, metadata: Option[Map[String, String]]): Future[Option[FormatSpecificAttributes]] = {
+              def inferContentTypeSpecificAttributes(`type`: MediaType, file: File, metadata: Option[Map[String, String]]): Future[Option[FormatSpecificAttributes]] = {
                 `type` match {
-                  case "image" =>
+                  case MediaType.Image =>
                     Future.successful(metadata.map(md => (inferImageSpecificAttributes(md))))
-                  case "video" =>
+                  case MediaType.Video =>
                     inferVideoSpecificAttributes(file).map(i => Some(i))
                   case _ =>
                     Future.successful(None)
                 }
               }
 
-              inferContentTypeSpecificAttributes(t, sourceFile.file, tmdo).map { contentTypeSpecificAttributes =>
+              inferContentTypeSpecificAttributes(t, sourceFile.path.toFile, tmdo).map { contentTypeSpecificAttributes =>
                 sourceFile.delete
 
                 val trackMetadata: Option[Seq[(String, String)]] = contentTypeSpecificAttributes.flatMap { ctsa =>
@@ -194,20 +191,18 @@ class MetaController @Inject()(
       }
     }
 
-    implicit val sw = Json.writes[Summary]
-    implicit val fsaw = Json.writes[FormatSpecificAttributes]
-    implicit val tw = Json.writes[Track]
-    implicit val mdw = Json.writes[Metadata]
-
     callback.map { c =>
       metadata.map { mdo =>
         mdo.map { md =>
           Logger.info("Calling back to metadata callback url: " + c)
-          ws.url(c).withHeaders((CONTENT_TYPE, "application/json")).
-            withRequestTimeout(thirtySeconds).
-            post(Json.stringify(Json.toJson(md))).map { rp =>
-            Logger.info("Response from callback url " + callback + ": " + rp.status)
-          }
+          ws
+            .url(c)
+            .withHttpHeaders((CONTENT_TYPE, "application/json"))
+            .withRequestTimeout(thirtySeconds)
+            .post(Json.toJson(md))
+            .map { rp =>
+              Logger.info("Response from callback url " + callback + ": " + rp.status)
+            }
         }
       }
 
@@ -226,7 +221,4 @@ class MetaController @Inject()(
     }
 
   }
-
-  case class MetadataTags(title: Option[String], description: Option[String], created: Option[DateTime], attribution: Option[String], email: Option[String], place: Option[String])
-
 }
