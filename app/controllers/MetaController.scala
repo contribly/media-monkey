@@ -113,10 +113,10 @@ class MetaController @Inject()(
 
       wo.map { w =>
         faceDetector.detectFaces(w).map { dfs =>
-          Logger.info("Calling back to " + callback)
+//          Logger.info("Calling back to " + callback)
           ws.url(callback).withRequestTimeout(thirtySeconds).
             post(asJson(dfs)).map { rp =>
-            Logger.info("Response from callback url " + callback + ": " + rp.status)
+//            Logger.info("Response from callback url " + callback + ": " + rp.status)
           }
           w.delete()
         }
@@ -132,7 +132,7 @@ class MetaController @Inject()(
     implicit val executionContext = akkaSystem.dispatchers.lookup("meta-processing-context")
 
     val metadata: Future[Option[Metadata]] = {
-      Logger.info("Processing metadata for file: " + sourceFile.path.toFile)
+//      Logger.info("Processing metadata for file: " + sourceFile.path.toFile)
 
       tikaService.meta(sourceFile.path.toFile).flatMap {  tmdo =>
         val tikaContentType = tmdo.flatMap(md => md.get(CONTENT_TYPE))
@@ -186,7 +186,7 @@ class MetaController @Inject()(
             }
 
           }.getOrElse {
-            Logger.info("Unsupported media type")
+            Logger.warn("Unsupported media type")
             Future.successful(None)
           }
         }
@@ -196,24 +196,24 @@ class MetaController @Inject()(
     callback.map { c =>
       metadata.map { mdo =>
         mdo.map { md =>
-          Logger.info("Calling back to metadata callback url: " + c)
+//          Logger.info("Calling back to metadata callback url: " + c)
           ws
             .url(c)
             .withHttpHeaders((CONTENT_TYPE, "application/json"))
             .withRequestTimeout(thirtySeconds)
             .post(Json.toJson(md))
             .map { rp =>
-              Logger.info("Response from callback url " + callback + ": " + rp.status)
+//              Logger.info("Response from callback url " + callback + ": " + rp.status)
             }
         }
       }
 
-      Logger.info("Replying Accepted to async metadata call")
+//      Logger.info("Replying Accepted to async metadata call")
       Future.successful(Accepted(Json.toJson("ok")))
 
     }.getOrElse {
       metadata.map { mdo =>
-        Logger.info("Replying to sync metadata call")
+//        Logger.info("Replying to sync metadata call")
         mdo.fold {
           UnsupportedMediaType(Json.toJson("Unsupported media type"))
         } { md =>

@@ -205,13 +205,12 @@ class Application @Inject()(
       val ec = executionContext
 
       eventualResult.map { ro =>
-        Logger.info("Mapping")
         ro.fold {
           Logger.warn("Failed to process file; not calling back")
 
         } { r =>
           val startTime = DateTime.now
-          Logger.info("Calling back to " + c)
+//          Logger.trace("Calling back to " + c)
           val of: OutputFormat = r._3
 
           val source = FileIO.fromFile(r._1)
@@ -221,7 +220,7 @@ class Application @Inject()(
             val duration = new org.joda.time.Duration(startTime, DateTime.now)
             rp.status match {
               case 202 =>
-                Logger.info("Response from callback url " + c + ": " + rp.status + " after " + duration.toStandardSeconds.toStandardDays)
+//                Logger.trace("Response from callback url " + c + ": " + rp.status + " after " + duration.toStandardSeconds.toStandardDays)
               case _ =>
                 Logger.warn("Unexpected response from callback url " + c + ": " + rp.status + " after " + duration.toStandardSeconds.toStandardDays + ": " + rp.body)
             }
@@ -239,7 +238,7 @@ class Application @Inject()(
         }
       }(ec)
 
-      Logger.info("Returning accepted")
+//      Logger.info("Returning accepted")
       Future.successful(Accepted(JsonAccepted))
     }
 
