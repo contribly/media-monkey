@@ -26,12 +26,3 @@ RUN \
   cd && \
   rm -r /working/ && \
   sbt sbtVersion
-  
-  
-#   RUN apt-get update && apt-get install -y \
-#         openjdk-11-jre-headless \
-#         imagemagick            \
-#         ffmpeg            \
-#         mediainfo             \
-#         libimage-exiftool-perl           \
-#     && rm -rf /var/lib/apt/lists/*

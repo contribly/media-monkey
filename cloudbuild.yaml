@@ -1,0 +1,7 @@
+steps:
+- name: 'gcr.io/$PROJECT_ID/scala-sbt'
+  args: ['clean', 'docker:publishLocal']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['tag', 'media-monkey:$COMMIT_SHA', 'eu.gcr.io/$PROJECT_ID/media-monkey:$COMMIT_SHA']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'eu.gcr.io/$PROJECT_ID/media-monkey:$COMMIT_SHA']
