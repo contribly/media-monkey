@@ -27,7 +27,7 @@ trait MetadataFunctions extends MediainfoInterpreter {
   )
 
   private val RecognisedVideoTypes = Seq(
-    "application/mp4",
+    "video/mp4",
     "video/3gpp",
     "video/m2ts",
     "video/mp4",
