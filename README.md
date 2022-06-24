@@ -87,3 +87,13 @@ This microservice is available as a Docker image:
 docker run -p 9001:9001 eelpie/media-monkey
 ```
 
+### Run tests
+1. Start Docker containers
+```
+docker-compose -f docker/docker-compose-it.yml up -d
+```
+
+2. Run tests
+```
+sbt test
+```
