@@ -83,7 +83,6 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
     mediainfoService.mediainfo(input).flatMap { mediainfo =>
       val rotationToApply = rotation.getOrElse(0)
       val sourceDimensions: Option[(Int, Int)] = videoDimensions(mediainfo)
-      val possiblePadding = padding(sourceDimensions, outputSize, sourceAspectRatio, rotationToApply)
 
       Future {
         val outputFile = File.createTempFile("transcoded", "." + outputFormat)
@@ -125,16 +124,10 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
     )
 
     val possibleRotation: Option[String] = RotationTransforms.get(rotation)
-    val scaleToOutputSize: Option[String] = outputSize.map { os =>
-      "scale=" + os._1 + ":" + os._2 + ":force_original_aspect_ratio=decrease"
-    }
-    val padding: Option[String] = outputSize.map { os =>
-      val paddingColour = "black"
-      "pad=" + os._1 + ":" + os._2 + ":(ow-iw)/2:(oh-ih)/2:" + paddingColour
-    }
-    val vfParameters: Seq[String] = Seq(possibleRotation, scaleToOutputSize, padding).flatten
 
+    val vfParameters: Seq[String] = Seq(possibleRotation).flatten
     if (vfParameters.nonEmpty) Seq("-vf", vfParameters.mkString(",")) else Seq()
+
   }
 
   private def avconvInput(input: File, mediainfo: Option[Seq[Track]]): Seq[String] = {
