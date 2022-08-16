@@ -19,8 +19,12 @@ libraryDependencies += "org.openimaj" % "faces" % "1.3.6"
 libraryDependencies += "us.fatehi" % "pointlocation6709" % "4.1"
 libraryDependencies += "commons-io" % "commons-io" % "2.5"
 
-libraryDependencies += specs2 % Test
-libraryDependencies += "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.2" % "test"
+// test deps
+libraryDependencies ++= Seq(
+  specs2 % Test,
+  "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.2" % Test,
+  "org.scalamock"          %% "scalamock"          % "5.1.0" % Test
+)
 
 javaOptions in Universal ++= Seq(
   // -J params will be added as jvm parameters
@@ -32,6 +36,7 @@ enablePlugins(GitVersioning)
 enablePlugins(DockerPlugin)
 import com.typesafe.sbt.packager.docker._
 dockerBaseImage := "debian:buster"
+dockerRepository := Option("eu.gcr.io/contribly-dev")
 dockerCommands ++= Seq(
   Cmd("USER", "root"),
   ExecCmd("RUN", "apt-get", "update"),

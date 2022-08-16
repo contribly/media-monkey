@@ -2,7 +2,7 @@ package controllers
 
 import java.io.{File, FileInputStream}
 
-import model.{FormatSpecificAttributes, Summary}
+import model.{FormatSpecificAttributes, MediaType, Summary}
 import org.apache.commons.codec.digest.DigestUtils
 import services.mediainfo.{MediainfoInterpreter, MediainfoService}
 import services.tika.TikaService
@@ -21,7 +21,9 @@ trait MetadataFunctions extends MediainfoInterpreter {
     "image/gif",
     "image/x-ms-bmp",
     "image/tiff",
-    "image/webp"
+    "image/webp",
+    "image/heic",
+    "image/heif"
   )
 
   private val RecognisedVideoTypes = Seq(
@@ -40,18 +42,18 @@ trait MetadataFunctions extends MediainfoInterpreter {
     "video/webm"
   )
 
-  def inferTypeFromContentType(contentType: String): Option[String] = {
+  def inferMediaTypeFromContentType(contentType: String): Option[MediaType] = {
     if (RecognisedImageTypes.contains(contentType)) { // TODO not stricly true; something can be an image without having to be supported
-      Some("image")
+      Some(MediaType.Image)
     } else if (RecognisedVideoTypes.contains(contentType)) {
-      Some("video")
+      Some(MediaType.Video)
     } else {
       None
     }
   }
 
   def summarise(contentType: String, file: File): Summary = {
-    val `type` = inferTypeFromContentType(contentType)
+    val `type` = inferMediaTypeFromContentType(contentType)
 
     val stream: FileInputStream = new FileInputStream(file)
     val md5Hash = DigestUtils.md5Hex(stream)

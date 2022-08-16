@@ -14,6 +14,7 @@ import scala.sys.process.{ProcessLogger, _}
 
 class ExiftoolService @Inject()(val temporaryFileCreator: TemporaryFileCreator) {
 
+  // TODO this function  can be replaced with tika /detect/stream
   def contentType(f: File)(implicit ec: ExecutionContext): Future[Option[String]] = {
 
     def parse(json: String): Option[String] = {
