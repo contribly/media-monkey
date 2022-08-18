@@ -14,8 +14,6 @@ import scala.sys.process.{ProcessLogger, _}
 
 class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: MediainfoService) extends MediainfoInterpreter with AvconvPadding {
 
-  val logger = ProcessLogger(l => Logger.info("avconv: " + l))
-
   def thumbnail(input: File, outputFormat: String, width: Option[Int], height: Option[Int], sourceAspectRatio: Option[Double], rotation: Option[Int]): Future[Option[File]] = {
 
     implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
@@ -124,14 +122,13 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
     )
 
     val possibleRotation: Option[String] = RotationTransforms.get(rotation)
-
     val vfParameters: Seq[String] = Seq(possibleRotation).flatten
     if (vfParameters.nonEmpty) Seq("-vf", vfParameters.mkString(",")) else Seq()
 
   }
 
   private def avconvInput(input: File, mediainfo: Option[Seq[Track]]): Seq[String] = {
-    Seq("ffmpeg", "-y") ++ videoCodec(mediainfo).flatMap(c => if (c == "WMV3") Some(Seq("-c:v", "wmv3")) else None).getOrElse(Seq()) ++ Seq("-i", input.getAbsolutePath)
+    Seq("ffmpeg", "-y") ++ videoCodec(mediainfo).flatMap(c => if (c == "WMV3") Some(Seq("-c:v", "wmv3")) else None).getOrElse(Seq()) ++ Seq("-i", input.getAbsolutePath) ++ Seq("-loglevel", "panic")
   }
 
 }
