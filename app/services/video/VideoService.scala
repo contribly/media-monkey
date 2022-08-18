@@ -30,24 +30,35 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
           }
         )
 
-        val avconvCmd = avconvInput(input, mediainfo) ++
-          vfParametersFor(rotationToApply, outputSize) ++
-          Seq("-ss", "00:00:00", "-r", "1", "-an", "-vframes", "1", output.getAbsolutePath)
+        val avconvCmd = width.flatMap(w =>
+          height.map { h =>
+            avconvInput(input, mediainfo) ++
+              vfParametersFor(rotationToApply, outputSize) ++
+              Seq("-ss", "00:00:00", "-r", "1", "-an", "-vframes", "1", "-vf", "scale='if(gt(a,16/10)," + w +",-1)':'if(gt(a,16/10),-1," + h +")', pad=w=" + w +":h=" + h +":x=(ow-iw)/2:y=(oh-ih)/2:color=black", output.getAbsolutePath)
+          }
+        )
 
-        Logger.info("ffmpeg command: " + avconvCmd)
+        Logger.debug("ffmpeg command: " + avconvCmd)
+        val process = avconvCmd.map { avCommand => {
+          avCommand.run()
+        }}
 
-        val process: Process = avconvCmd.run(logger)
-        val exitValue: Int = process.exitValue() // Blocks until the process completes
+        val exitValue = process.map{ proc => {
+          proc.exitValue
+        }}
 
-        if (exitValue == 0) {
-          Logger.info("Thumbnail output to: " + output.getAbsolutePath)
-          Some(output)
+        exitValue.flatMap{eValue =>
+          if (eValue == 0) {
+            Logger.info("Thumbnail output to: " + output.getAbsolutePath)
+            Some(output)
 
-        } else {
-          Logger.warn("avconv process failed: " + avconvCmd)
-          output.delete
-          None
+          } else {
+            Logger.warn("avconv process failed: " + avconvCmd)
+            output.delete
+            None
+          }
         }
+
       }
     }
   }
@@ -60,9 +71,8 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
 
       val avconvCmd = avconvInput(input, mediainfo) ++ Seq("-vn", output.getAbsolutePath)
       Logger.info("Processing video audio track")
-      Logger.info("avconv command: " + avconvCmd.mkString(" "))
 
-      if (avconvCmd.run(logger).exitValue() == 0) {
+      if (avconvCmd.run().exitValue() == 0) {
         Logger.info("Transcoded video output to: " + output.getAbsolutePath)
         Some(output)
 
@@ -88,9 +98,9 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
           vfParametersFor(rotationToApply, outputSize) ++
           Seq("-b:a", "128k", "-strict", "experimental", outputFile.getAbsolutePath)
 
-        Logger.info("avconv command: " + avconvCmd.mkString(" "))
+        Logger.debug("avconv command: " + avconvCmd.mkString(" "))
 
-        val process: Process = avconvCmd.run(logger)
+        val process: Process = avconvCmd.run()
         val exitValue: Int = process.exitValue() // Blocks until the process completes
 
         if (exitValue == 0) {
