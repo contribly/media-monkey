@@ -1,8 +1,6 @@
 FROM debian:buster
-WORKDIR /opt/docker
-ADD --chown=daemon:daemon opt /opt
 USER daemon
-ENTRYPOINT ["/opt/docker/bin/media-monkey"]
+ENTRYPOINT ["./media-monkey"]
 CMD []
 USER root
 RUN ["apt-get", "update"]

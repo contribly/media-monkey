@@ -1,0 +1,357 @@
+#!/usr/bin/env bash
+
+###  ------------------------------- ###
+###  Helper methods for BASH scripts ###
+###  ------------------------------- ###
+
+die() {
+  echo "$@" 1>&2
+  exit 1
+}
+
+realpath () {
+(
+  TARGET_FILE="$1"
+  CHECK_CYGWIN="$2"
+
+  cd "$(dirname "$TARGET_FILE")"
+  TARGET_FILE=$(basename "$TARGET_FILE")
+
+  COUNT=0
+  while [ -L "$TARGET_FILE" -a $COUNT -lt 100 ]
+  do
+      TARGET_FILE=$(readlink "$TARGET_FILE")
+      cd "$(dirname "$TARGET_FILE")"
+      TARGET_FILE=$(basename "$TARGET_FILE")
+      COUNT=$(($COUNT + 1))
+  done
+
+  if [ "$TARGET_FILE" == "." -o "$TARGET_FILE" == ".." ]; then
+    cd "$TARGET_FILE"
+    TARGET_FILEPATH=
+  else
+    TARGET_FILEPATH=/$TARGET_FILE
+  fi
+
+  # make sure we grab the actual windows path, instead of cygwin's path.
+  if [[ "x$CHECK_CYGWIN" == "x" ]]; then
+    echo "$(pwd -P)/$TARGET_FILE"
+  else
+    echo $(cygwinpath "$(pwd -P)/$TARGET_FILE")
+  fi
+)
+}
+
+# TODO - Do we need to detect msys?
+
+# Uses uname to detect if we're in the odd cygwin environment.
+is_cygwin() {
+  local os=$(uname -s)
+  case "$os" in
+    CYGWIN*) return 0 ;;
+    *)  return 1 ;;
+  esac
+}
+
+# This can fix cygwin style /cygdrive paths so we get the
+# windows style paths.
+cygwinpath() {
+  local file="$1"
+  if is_cygwin; then
+    echo $(cygpath -w $file)
+  else
+    echo $file
+  fi
+}
+
+# Make something URI friendly
+make_url() {
+  url="$1"
+  local nospaces=${url// /%20}
+  if is_cygwin; then
+    echo "/${nospaces//\\//}"
+  else
+    echo "$nospaces"
+  fi
+}
+
+# This crazy function reads in a vanilla "linux" classpath string (only : are separators, and all /),
+# and returns a classpath with windows style paths, and ; separators.
+fixCygwinClasspath() {
+  OLDIFS=$IFS
+  IFS=":"
+  read -a classpath_members <<< "$1"
+  declare -a fixed_members
+  IFS=$OLDIFS
+  for i in "${!classpath_members[@]}"
+  do
+    fixed_members[i]=$(realpath "${classpath_members[i]}" "fix")
+  done
+  IFS=";"
+  echo "${fixed_members[*]}"
+  IFS=$OLDIFS
+}
+
+# Fix the classpath we use for cygwin.
+fix_classpath() {
+  cp="$1"
+  if is_cygwin; then
+    echo "$(fixCygwinClasspath "$cp")"
+  else
+    echo "$cp"
+  fi
+}
+# Detect if we should use JAVA_HOME or just try PATH.
+get_java_cmd() {
+  if [[ -n "$JAVA_HOME" ]] && [[ -x "$JAVA_HOME/bin/java" ]];  then
+    echo "$JAVA_HOME/bin/java"
+  else
+    echo "java"
+  fi
+}
+
+echoerr () {
+  echo 1>&2 "$@"
+}
+vlog () {
+  [[ $verbose || $debug ]] && echoerr "$@"
+}
+dlog () {
+  [[ $debug ]] && echoerr "$@"
+}
+execRunner () {
+  # print the arguments one to a line, quoting any containing spaces
+  [[ $verbose || $debug ]] && echo "# Executing command line:" && {
+    for arg; do
+      if printf "%s\n" "$arg" | grep -q ' '; then
+        printf "\"%s\"\n" "$arg"
+      else
+        printf "%s\n" "$arg"
+      fi
+    done
+    echo ""
+  }
+
+  # we use "exec" here for our pids to be accurate.
+  exec "$@"
+}
+addJava () {
+  dlog "[addJava] arg = '$1'"
+  java_args+=( "$1" )
+}
+addApp () {
+  dlog "[addApp] arg = '$1'"
+  app_commands+=( "$1" )
+}
+addResidual () {
+  dlog "[residual] arg = '$1'"
+  residual_args+=( "$1" )
+}
+addDebugger () {
+  addJava "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$1"
+}
+
+require_arg () {
+  local type="$1"
+  local opt="$2"
+  local arg="$3"
+  if [[ -z "$arg" ]] || [[ "${arg:0:1}" == "-" ]]; then
+    die "$opt requires <$type> argument"
+  fi
+}
+is_function_defined() {
+  declare -f "$1" > /dev/null
+}
+
+# Attempt to detect if the script is running via a GUI or not
+# TODO - Determine where/how we use this generically
+detect_terminal_for_ui() {
+  [[ ! -t 0 ]] && [[ "${#residual_args}" == "0" ]] && {
+    echo "true"
+  }
+  # SPECIAL TEST FOR MAC
+  [[ "$(uname)" == "Darwin" ]] && [[ "$HOME" == "$PWD" ]] && [[ "${#residual_args}" == "0" ]] && {
+    echo "true"
+  }
+}
+
+# Processes incoming arguments and places them in appropriate global variables.  called by the run method.
+process_args () {
+  local no_more_snp_opts=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+             --) shift && no_more_snp_opts=1 && break ;;
+       -h|-help) usage; exit 1 ;;
+    -v|-verbose) verbose=1 && shift ;;
+      -d|-debug) debug=1 && shift ;;
+
+    -no-version-check) no_version_check=1 && shift ;;
+
+           -mem) echo "!! WARNING !! -mem option is ignored. Please use -J-Xmx and -J-Xms" && shift 2 ;;
+     -jvm-debug) require_arg port "$1" "$2" && addDebugger $2 && shift 2 ;;
+
+          -main) custom_mainclass="$2" && shift 2 ;;
+
+     -java-home) require_arg path "$1" "$2" && jre=`eval echo $2` && java_cmd="$jre/bin/java" && shift 2 ;;
+
+ -D*|-agentlib*|-XX*) addJava "$1" && shift ;;
+                 -J*) addJava "${1:2}" && shift ;;
+                   *) addResidual "$1" && shift ;;
+    esac
+  done
+
+  if [[ no_more_snp_opts ]]; then
+    while [[ $# -gt 0 ]]; do
+      addResidual "$1" && shift
+    done
+  fi
+
+  is_function_defined process_my_args && {
+    myargs=("${residual_args[@]}")
+    residual_args=()
+    process_my_args "${myargs[@]}"
+  }
+}
+
+# Actually runs the script.
+run() {
+  # TODO - check for sane environment
+
+  # process the combined args, then reset "$@" to the residuals
+  process_args "$@"
+  set -- "${residual_args[@]}"
+  argumentCount=$#
+
+  #check for jline terminal fixes on cygwin
+  if is_cygwin; then
+    stty -icanon min 1 -echo > /dev/null 2>&1
+    addJava "-Djline.terminal=jline.UnixTerminal"
+    addJava "-Dsbt.cygwin=true"
+  fi
+
+  # check java version
+  if [[ ! $no_version_check ]]; then
+    java_version_check
+  fi
+
+  if [ -n "$custom_mainclass" ]; then
+    mainclass=("$custom_mainclass")
+  else
+    mainclass=("${app_mainclass[@]}")
+  fi
+
+  # Now we check to see if there are any java opts on the environment. These get listed first, with the script able to override them.
+  if [[ "$JAVA_OPTS" != "" ]]; then
+    java_opts="${JAVA_OPTS}"
+  fi
+
+  # run sbt
+  execRunner "$java_cmd" \
+    ${java_opts[@]} \
+    "${java_args[@]}" \
+    -cp "$(fix_classpath "$app_classpath")" \
+    "${mainclass[@]}" \
+    "${app_commands[@]}" \
+    "${residual_args[@]}"
+
+  local exit_code=$?
+  if is_cygwin; then
+    stty icanon echo > /dev/null 2>&1
+  fi
+  exit $exit_code
+}
+
+# Loads a configuration file full of default command line options for this script.
+loadConfigFile() {
+  cat "$1" | sed '/^\#/d;s/\r$//'
+}
+
+# Now check to see if it's a good enough version
+# TODO - Check to see if we have a configured default java version, otherwise use 1.6
+java_version_check() {
+  readonly java_version=$("$java_cmd" -version 2>&1 | awk -F '"' '/version/ {print $2}')
+  if [[ "$java_version" == "" ]]; then
+    echo
+    echo No java installations was detected.
+    echo Please go to http://www.java.com/getjava/ and download
+    echo
+    exit 1
+  else
+    local major=$(echo "$java_version" | cut -d'.' -f1)
+    if [[ "$major" -eq "1" ]]; then
+     local major=$(echo "$java_version" | cut -d'.' -f2)
+    fi
+    if [[ "$major" -lt "6" ]]; then
+      echo
+      echo The java installation you have is not up to date
+      echo $app_name requires at least version 1.6+, you have
+      echo version $java_version
+      echo
+      echo Please go to http://www.java.com/getjava/ and download
+      echo a valid Java Runtime and install before running $app_name.
+      echo
+      exit 1
+    fi
+  fi
+}
+
+###  ------------------------------- ###
+###  Start of customized settings    ###
+###  ------------------------------- ###
+usage() {
+ cat <<EOM
+Usage: $script_name [options]
+
+  -h | -help         print this message
+  -v | -verbose      this runner is chattier
+  -d | -debug        set sbt log level to debug
+  -no-version-check  Don't run the java version check.
+  -main <classname>  Define a custom main class
+  -jvm-debug <port>  Turn on JVM debugging, open at the given port.
+
+  # java version (default: java from PATH, currently $(java -version 2>&1 | grep version))
+  -java-home <path>         alternate JAVA_HOME
+
+  # jvm options and output control
+  JAVA_OPTS          environment variable, if unset uses "$java_opts"
+  -Dkey=val          pass -Dkey=val directly to the java runtime
+  -J-X               pass option -X directly to the java runtime
+                     (-J is stripped)
+
+  # special option
+  --                 To stop parsing built-in commands from the rest of the command-line.
+                     e.g.) enabling debug and sending -d as app argument
+                     \$ ./start-script -d -- -d
+
+In the case of duplicated or conflicting options, basically the order above
+shows precedence: JAVA_OPTS lowest, command line options highest except "--".
+Available main classes:
+	play.core.server.ProdServerStart
+EOM
+}
+
+###  ------------------------------- ###
+###  Main script                     ###
+###  ------------------------------- ###
+
+declare -a residual_args
+declare -a java_args
+declare -a app_commands
+declare -r real_script_path="$(realpath "$0")"
+declare -r app_home="$(realpath "$(dirname "$real_script_path")")"
+# TODO - Check whether this is ok in cygwin...
+declare -r lib_dir="$(realpath "${app_home}/../lib")"
+declare -a app_mainclass=(play.core.server.ProdServerStart)
+
+declare -r script_conf_file="${app_home}/../conf/application.ini"
+declare -r app_classpath="$lib_dir/../conf/:$lib_dir/media-monkey.media-monkey-e842cb470b58e89faf9c1a9c0e92ef992a00c1eb-sans-externalized.jar:$lib_dir/org.scala-lang.scala-library-2.12.13.jar:$lib_dir/com.typesafe.play.twirl-api_2.12-1.3.15.jar:$lib_dir/org.scala-lang.modules.scala-xml_2.12-1.0.6.jar:$lib_dir/com.typesafe.play.play-server_2.12-2.6.20.jar:$lib_dir/com.typesafe.play.play_2.12-2.6.20.jar:$lib_dir/com.typesafe.play.build-link-2.6.20.jar:$lib_dir/com.typesafe.play.play-exceptions-2.6.20.jar:$lib_dir/com.typesafe.play.play-netty-utils-2.6.20.jar:$lib_dir/org.slf4j.slf4j-api-1.7.25.jar:$lib_dir/org.slf4j.jul-to-slf4j-1.7.25.jar:$lib_dir/org.slf4j.jcl-over-slf4j-1.7.25.jar:$lib_dir/com.typesafe.play.play-streams_2.12-2.6.20.jar:$lib_dir/org.reactivestreams.reactive-streams-1.0.2.jar:$lib_dir/com.typesafe.akka.akka-stream_2.12-2.5.17.jar:$lib_dir/com.typesafe.akka.akka-actor_2.12-2.5.17.jar:$lib_dir/com.typesafe.config-1.3.3.jar:$lib_dir/org.scala-lang.modules.scala-java8-compat_2.12-0.8.0.jar:$lib_dir/com.typesafe.akka.akka-protobuf_2.12-2.5.17.jar:$lib_dir/com.typesafe.ssl-config-core_2.12-0.2.4.jar:$lib_dir/com.typesafe.akka.akka-slf4j_2.12-2.5.17.jar:$lib_dir/com.fasterxml.jackson.core.jackson-core-2.8.11.jar:$lib_dir/com.fasterxml.jackson.core.jackson-annotations-2.8.11.jar:$lib_dir/com.fasterxml.jackson.datatype.jackson-datatype-jdk8-2.8.11.jar:$lib_dir/com.fasterxml.jackson.core.jackson-databind-2.8.11.1.jar:$lib_dir/com.fasterxml.jackson.datatype.jackson-datatype-jsr310-2.8.11.jar:$lib_dir/commons-codec.commons-codec-1.10.jar:$lib_dir/com.typesafe.play.play-json_2.12-2.6.10.jar:$lib_dir/com.typesafe.play.play-functional_2.12-2.6.10.jar:$lib_dir/org.scala-lang.scala-reflect-2.12.13.jar:$lib_dir/org.typelevel.macro-compat_2.12-1.1.1.jar:$lib_dir/joda-time.joda-time-2.9.9.jar:$lib_dir/com.google.guava.guava-22.0.jar:$lib_dir/com.google.code.findbugs.jsr305-1.3.9.jar:$lib_dir/com.google.errorprone.error_prone_annotations-2.0.18.jar:$lib_dir/com.google.j2objc.j2objc-annotations-1.1.jar:$lib_dir/org.codehaus.mojo.animal-sniffer-annotations-1.14.jar:$lib_dir/io.jsonwebtoken.jjwt-0.7.0.jar:$lib_dir/javax.xml.bind.jaxb-api-2.3.0.jar:$lib_dir/org.apache.commons.commons-lang3-3.6.jar:$lib_dir/javax.transaction.jta-1.1.jar:$lib_dir/javax.inject.javax.inject-1.jar:$lib_dir/com.typesafe.play.filters-helpers_2.12-2.6.20.jar:$lib_dir/com.typesafe.play.play-logback_2.12-2.6.20.jar:$lib_dir/ch.qos.logback.logback-classic-1.2.3.jar:$lib_dir/ch.qos.logback.logback-core-1.2.3.jar:$lib_dir/com.typesafe.play.play-akka-http-server_2.12-2.6.20.jar:$lib_dir/com.typesafe.akka.akka-http-core_2.12-10.0.14.jar:$lib_dir/com.typesafe.akka.akka-parsing_2.12-10.0.14.jar:$lib_dir/com.typesafe.play.play-guice_2.12-2.6.20.jar:$lib_dir/com.google.inject.guice-4.1.0.jar:$lib_dir/aopalliance.aopalliance-1.0.jar:$lib_dir/com.google.inject.extensions.guice-assistedinject-4.1.0.jar:$lib_dir/com.typesafe.play.play-ahc-ws_2.12-2.6.20.jar:$lib_dir/com.typesafe.play.play-ws_2.12-2.6.20.jar:$lib_dir/com.typesafe.play.play-ws-standalone_2.12-1.1.10.jar:$lib_dir/com.typesafe.play.play-ws-standalone-xml_2.12-1.1.10.jar:$lib_dir/com.typesafe.play.play-ws-standalone-json_2.12-1.1.10.jar:$lib_dir/com.typesafe.play.play-ahc-ws-standalone_2.12-1.1.10.jar:$lib_dir/com.typesafe.play.cachecontrol_2.12-1.1.3.jar:$lib_dir/org.scala-lang.modules.scala-parser-combinators_2.12-1.1.0.jar:$lib_dir/org.joda.joda-convert-1.9.2.jar:$lib_dir/com.typesafe.play.shaded-asynchttpclient-1.1.10.jar:$lib_dir/com.typesafe.play.shaded-oauth-1.1.10.jar:$lib_dir/javax.cache.cache-api-1.0.0.jar:$lib_dir/org.apache.tika.tika-core-1.11.jar:$lib_dir/org.im4java.im4java-1.4.0.jar:$lib_dir/org.openimaj.core-1.3.6.jar:$lib_dir/org.openimaj.core-citation-1.3.6.jar:$lib_dir/org.openimaj.core-aop-support-1.3.6.jar:$lib_dir/org.jbibtex.jbibtex-1.0.2.jar:$lib_dir/javassist.javassist-3.12.1.GA.jar:$lib_dir/org.jsoup.jsoup-1.6.3.jar:$lib_dir/net.sf.trove4j.trove4j-3.0.2.jar:$lib_dir/colt.colt-1.2.0.jar:$lib_dir/concurrent.concurrent-1.3.4.jar:$lib_dir/commons-lang.commons-lang-2.6.jar:$lib_dir/commons-io.commons-io-2.5.jar:$lib_dir/org.apache.commons.commons-vfs2-2.0.jar:$lib_dir/org.apache.maven.scm.maven-scm-api-1.4.jar:$lib_dir/org.codehaus.plexus.plexus-utils-1.5.6.jar:$lib_dir/org.apache.maven.scm.maven-scm-provider-svnexe-1.4.jar:$lib_dir/org.apache.maven.scm.maven-scm-provider-svn-commons-1.4.jar:$lib_dir/regexp.regexp-1.3.jar:$lib_dir/com.esotericsoftware.kryo.kryo-2.21.jar:$lib_dir/com.esotericsoftware.reflectasm.reflectasm-1.07-shaded.jar:$lib_dir/org.ow2.asm.asm-4.0.jar:$lib_dir/com.esotericsoftware.minlog.minlog-1.2.jar:$lib_dir/vigna.dsi.unimi.it.jal-20031117.jar:$lib_dir/org.apache.ant.ant-1.8.4.jar:$lib_dir/org.apache.ant.ant-launcher-1.8.4.jar:$lib_dir/org.apache.httpcomponents.httpclient-4.5.jar:$lib_dir/org.apache.httpcomponents.httpcore-4.4.1.jar:$lib_dir/commons-logging.commons-logging-1.2.jar:$lib_dir/uk.com.robust-it.cloning-1.9.1.jar:$lib_dir/org.objenesis.objenesis-2.1.jar:$lib_dir/org.openimaj.core-image-1.3.6.jar:$lib_dir/com.googlecode.json-simple.json-simple-1.1.jar:$lib_dir/net.sourceforge.jeuclid.jeuclid-core-3.1.9.jar:$lib_dir/org.apache.xmlgraphics.batik-svg-dom-1.7.jar:$lib_dir/org.apache.xmlgraphics.batik-anim-1.7.jar:$lib_dir/org.apache.xmlgraphics.batik-awt-util-1.7.jar:$lib_dir/org.apache.xmlgraphics.batik-util-1.7.jar:$lib_dir/org.apache.xmlgraphics.batik-dom-1.7.jar:$lib_dir/org.apache.xmlgraphics.batik-css-1.7.jar:$lib_dir/org.apache.xmlgraphics.batik-ext-1.7.jar:$lib_dir/xml-apis.xml-apis-1.3.04.jar:$lib_dir/xml-apis.xml-apis-ext-1.3.04.jar:$lib_dir/org.apache.xmlgraphics.batik-xml-1.7.jar:$lib_dir/xalan.xalan-2.6.0.jar:$lib_dir/org.apache.xmlgraphics.batik-parser-1.7.jar:$lib_dir/org.apache.xmlgraphics.xmlgraphics-commons-1.3.1.jar:$lib_dir/uk.ac.ed.ph.snuggletex.snuggletex-core-1.2.2.jar:$lib_dir/uk.ac.ed.ph.snuggletex.snuggletex-upconversion-1.2.2.jar:$lib_dir/uk.ac.ed.ph.snuggletex.snuggletex-jeuclid-1.2.2.jar:$lib_dir/com.flickr4java.flickr4java-2.13_jonhare_0408059615bfa8da071c2e54268e3004ce62d6a4.jar:$lib_dir/org.scribe.scribe-1.3.5.jar:$lib_dir/org.apache.axis.axis-1.4.jar:$lib_dir/log4j.log4j-1.2.17.jar:$lib_dir/org.openimaj.core-math-1.3.6.jar:$lib_dir/gov.nist.math.jama-1.0.3.jar:$lib_dir/org.la4j.la4j-0.4.0.jar:$lib_dir/com.googlecode.matrix-toolkits-java.mtj-1.0.2.jar:$lib_dir/com.github.fommil.netlib.core-1.1.2.jar:$lib_dir/com.github.fommil.netlib.netlib-native_ref-osx-x86_64-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.native_ref-java-1.1.jar:$lib_dir/com.github.fommil.jniloader-1.1.jar:$lib_dir/com.github.fommil.netlib.netlib-native_ref-linux-x86_64-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.netlib-native_ref-linux-i686-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.netlib-native_ref-win-x86_64-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.netlib-native_ref-win-i686-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.netlib-native_ref-linux-armhf-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.netlib-native_system-osx-x86_64-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.native_system-java-1.1.jar:$lib_dir/com.github.fommil.netlib.netlib-native_system-linux-x86_64-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.netlib-native_system-linux-i686-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.netlib-native_system-linux-armhf-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.netlib-native_system-win-x86_64-1.1-natives.jar:$lib_dir/com.github.fommil.netlib.netlib-native_system-win-i686-1.1-natives.jar:$lib_dir/net.sf.jafama.JaFaMa-1.2.jar:$lib_dir/jgrapht.jgrapht-0.8.2.jar:$lib_dir/org.openimaj.MatrixLib-1.3.6.jar:$lib_dir/com.googlecode.netlib-java.netlib-java-0.9.3.jar:$lib_dir/net.sourceforge.f2j.arpack_combined_all-0.1.jar:$lib_dir/net.sourceforge.jmatio.jmatio-1.2.jar:$lib_dir/gov.sandia.foundry.gov-sandia-cognition-common-core-3.3.0.jar:$lib_dir/com.thoughtworks.xstream.xstream-1.4.3.jar:$lib_dir/xmlpull.xmlpull-1.1.3.1.jar:$lib_dir/xpp3.xpp3_min-1.1.4c.jar:$lib_dir/gov.sandia.foundry.gov-sandia-cognition-learning-core-3.3.0.jar:$lib_dir/org.apache.commons.commons-math3-3.3.jar:$lib_dir/org.apache.sanselan.sanselan-0.97-incubator.jar:$lib_dir/com.caffeineowl.bezier-utils-1.0.0-RELEASE.jar:$lib_dir/javax.media.jai-core-1.1.3.jar:$lib_dir/com.sun.media.jai-codec-1.1.3.jar:$lib_dir/com.twelvemonkeys.imageio.imageio-jpeg-3.0-rc5.jar:$lib_dir/com.twelvemonkeys.imageio.imageio-metadata-3.0-rc5.jar:$lib_dir/com.twelvemonkeys.common.common-io-3.0-rc5.jar:$lib_dir/com.twelvemonkeys.common.common-image-3.0-rc5.jar:$lib_dir/com.twelvemonkeys.imageio.imageio-core-3.0-rc5.jar:$lib_dir/com.twelvemonkeys.common.common-lang-3.0-rc5.jar:$lib_dir/net.sf.saxon.saxon9-9.1.0.8.jar:$lib_dir/net.sf.saxon.saxon9-dom-9.1.0.8.jar:$lib_dir/org.openimaj.faces-1.3.6.jar:$lib_dir/org.openimaj.image-processing-1.3.6.jar:$lib_dir/org.openimaj.core-experiment-1.3.6.jar:$lib_dir/org.openimaj.IREval-1.3.6.jar:$lib_dir/org.apache.commons.commons-math-2.2.jar:$lib_dir/com.googlecode.jatl.jatl-0.2.1.jar:$lib_dir/jfree.jfreechart-1.0.13.jar:$lib_dir/jfree.jcommon-1.0.16.jar:$lib_dir/net.sf.jasperreports.jasperreports-4.6.0.jar:$lib_dir/commons-beanutils.commons-beanutils-1.8.0.jar:$lib_dir/commons-collections.commons-collections-2.1.jar:$lib_dir/commons-digester.commons-digester-2.1.jar:$lib_dir/com.lowagie.itext-2.1.7.jar:$lib_dir/bouncycastle.bcmail-jdk14-138.jar:$lib_dir/bouncycastle.bcprov-jdk14-138.jar:$lib_dir/org.bouncycastle.bctsp-jdk14-1.38.jar:$lib_dir/org.bouncycastle.bcprov-jdk14-1.38.jar:$lib_dir/org.bouncycastle.bcmail-jdk14-1.38.jar:$lib_dir/eclipse.jdtcore-3.1.0.jar:$lib_dir/org.codehaus.castor.castor-1.2.jar:$lib_dir/org.apache.poi.poi-ooxml-3.7.jar:$lib_dir/org.apache.poi.poi-3.7.jar:$lib_dir/org.apache.poi.poi-ooxml-schemas-3.7.jar:$lib_dir/org.apache.xmlbeans.xmlbeans-2.3.0.jar:$lib_dir/stax.stax-api-1.0.1.jar:$lib_dir/org.apache.geronimo.specs.geronimo-stax-api_1.0_spec-1.0.jar:$lib_dir/dom4j.dom4j-1.6.1.jar:$lib_dir/org.codehaus.jackson.jackson-core-asl-1.9.4.jar:$lib_dir/org.codehaus.jackson.jackson-mapper-asl-1.9.4.jar:$lib_dir/org.bethecoder.ascii-table-1.0.jar:$lib_dir/org.openimaj.core-feature-1.3.6.jar:$lib_dir/org.openimaj.core-video-1.3.6.jar:$lib_dir/org.openimaj.core-audio-1.3.6.jar:$lib_dir/org.openimaj.content.animation-1.3.6.jar:$lib_dir/org.openimaj.JTransforms-1.3.6.jar:$lib_dir/org.openimaj.image-local-features-1.3.6.jar:$lib_dir/org.openimaj.clustering-1.3.6.jar:$lib_dir/org.openimaj.nearest-neighbour-1.3.6.jar:$lib_dir/org.openimaj.image-feature-extraction-1.3.6.jar:$lib_dir/org.openimaj.machine-learning-1.3.6.jar:$lib_dir/de.bwaldvogel.liblinear-dense-1.92.jar:$lib_dir/tw.edu.ntu.csie.libsvm-3.1.jar:$lib_dir/org.openimaj.klt-tracker-1.3.6.jar:$lib_dir/org.openimaj.video-processing-1.3.6.jar:$lib_dir/org.openimaj.object-detection-1.3.6.jar:$lib_dir/org.openimaj.FaceTracker-1.3.6.jar:$lib_dir/org.openimaj.core-video-capture-1.3.6.jar:$lib_dir/com.nativelibs4java.bridj-0.7-20140918.jar:$lib_dir/com.google.android.tools.dx-1.7.jar:$lib_dir/org.openimaj.xuggle-video-1.3.6.jar:$lib_dir/xuggle.xuggle-xuggler-lgpl-5.5-20140728.jar:$lib_dir/commons-cli.commons-cli-1.1.jar:$lib_dir/us.fatehi.pointlocation6709-4.1.jar:$lib_dir/media-monkey.media-monkey-e842cb470b58e89faf9c1a9c0e92ef992a00c1eb-assets.jar"
+
+addJava "-Duser.dir=$(realpath "$(cd "${app_home}/.."; pwd -P)"  $(is_cygwin && echo "fix"))"
+
+# java_cmd is overrode in process_args when -java-home is used
+declare java_cmd=$(get_java_cmd)
+
+# if configuration files exist, prepend their contents to $@ so it can be processed by this runner
+[[ -f "$script_conf_file" ]] && set -- $(loadConfigFile "$script_conf_file") "$@"
+
+run "$@"
