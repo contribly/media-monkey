@@ -18,47 +18,41 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
 
     implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
 
-    mediainfoService.mediainfo(input).flatMap { mediainfo =>
+    mediainfoService.mediainfo(input) map { mediainfo =>
       val rotationToApply = rotation.getOrElse(0)
 
-      Future {
-        val output: File = File.createTempFile("thumbnail", "." + outputFormat)
+      val output: File = File.createTempFile("thumbnail", "." + outputFormat)
 
-        val outputSize = width.flatMap(w =>
-          height.map { h =>
-            (w, h)
-          }
-        )
-
-        val avconvCmd = width.flatMap(w =>
-          height.map { h =>
-            avconvInput(input, mediainfo) ++
-              vfParametersFor(rotationToApply, outputSize) ++
-              Seq("-ss", "00:00:00", "-r", "1", "-an", "-vframes", "1", "-vf", "scale='if(gt(a,16/10)," + w +",-1)':'if(gt(a,16/10),-1," + h +")', pad=w=" + w +":h=" + h +":x=(ow-iw)/2:y=(oh-ih)/2:color=black", output.getAbsolutePath)
-          }
-        )
-
-        Logger.debug("ffmpeg command: " + avconvCmd)
-        val process = avconvCmd.map { avCommand => {
-          avCommand.run()
-        }}
-
-        val exitValue = process.map{ proc => {
-          proc.exitValue
-        }}
-
-        exitValue.flatMap{eValue =>
-          if (eValue == 0) {
-            Logger.info("Thumbnail output to: " + output.getAbsolutePath)
-            Some(output)
-
-          } else {
-            Logger.warn("avconv process failed: " + avconvCmd)
-            output.delete
-            None
-          }
+      val outputSize = width.flatMap(w =>
+        height.map { h =>
+          (w, h)
         }
+      )
 
+      val avconvCmd: Seq[String] = (width, height) match {
+        case (Some(w), Some(h)) => constructThumbnailArguments(w, h)
+        case _ => constructThumbnailArguments(120, 120) // do some logging
+      }
+
+      def constructThumbnailArguments(w: Int, h: Int): Seq[String] = {
+        avconvInput(input, mediainfo) ++
+        vfParametersFor(rotationToApply, outputSize) ++
+        Seq("-ss", "00:00:00", "-r", "1", "-an", "-vframes", "1", "-vf", "scale='if(gt(a,16/10)," + w +",-1)':'if(gt(a,16/10),-1," + h +")', pad=w=" + w +":h=" + h +":x=(ow-iw)/2:y=(oh-ih)/2:color=black", output.getAbsolutePath)
+      }
+
+      Logger.debug("ffmpeg command: " + avconvCmd)
+      val process = avconvCmd.run()
+
+      val exitValue = process.exitValue
+
+      if (exitValue == 0) {
+        Logger.info("Thumbnail output to: " + output.getAbsolutePath)
+        Some(output)
+
+      } else {
+        Logger.warn("avconv process failed: " + avconvCmd)
+        output.delete
+        None
       }
     }
   }
@@ -138,7 +132,19 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
   }
 
   private def avconvInput(input: File, mediainfo: Option[Seq[Track]]): Seq[String] = {
-    Seq("ffmpeg", "-y") ++ videoCodec(mediainfo).flatMap(c => if (c == "WMV3") Some(Seq("-c:v", "wmv3")) else None).getOrElse(Seq()) ++ Seq("-i", input.getAbsolutePath) ++ Seq("-loglevel", "panic")
+    val optionalInput =
+      if(videoCodec(mediainfo).contains("WMV3")) {
+        Some(Seq("-c:v", "wmv3"))
+      } else None
+    val mandatoryInput = Seq(
+      "ffmpeg",
+      "-y",
+      "-i",
+      input.getAbsolutePath,
+      "-loglevel",
+      "panic"
+    )
+    optionalInput.fold(mandatoryInput){ input => mandatoryInput ++ input }
   }
 
 }
