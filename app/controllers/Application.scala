@@ -205,9 +205,8 @@ class Application @Inject()(
       val ec = executionContext
 
       eventualResult.map { ro =>
-        Logger.info("Mapping")
         ro.fold {
-          Logger.warn("Failed to process file; not calling back")
+          Logger.warn("Failed to process file; not calling back to " + c)
 
         } { r =>
           val startTime = DateTime.now

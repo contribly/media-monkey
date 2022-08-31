@@ -34,7 +34,7 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
           height.map { h =>
             avconvInput(input, mediainfo) ++
               vfParametersFor(rotationToApply, outputSize) ++
-              Seq("-ss", "00:00:00", "-r", "1", "-an", "-vframes", "1", "-vf", "scale='if(gt(a,16/10)," + w +",-1)':'if(gt(a,16/10),-1," + h +")', pad=w=" + w +":h=" + h +":x=(ow-iw)/2:y=(oh-ih)/2:color=black", output.getAbsolutePath)
+              Seq("-ss", "00:00:00", "-r", "1", "-an", "-vframes", "1", "-vf", "scale='if(gt(a,16/10)," + w +",-1)':'if(gt(a,16/10),-1," + h +")'", output.getAbsolutePath)
           }
         )
 
@@ -109,6 +109,7 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
 
         } else {
           Logger.warn("avconv process failed: " + avconvCmd)
+          Logger.warn("exit value " + exitValue)
           outputFile.delete
           None
         }
@@ -138,7 +139,18 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
   }
 
   private def avconvInput(input: File, mediainfo: Option[Seq[Track]]): Seq[String] = {
-    Seq("ffmpeg", "-y") ++ videoCodec(mediainfo).flatMap(c => if (c == "WMV3") Some(Seq("-c:v", "wmv3")) else None).getOrElse(Seq()) ++ Seq("-i", input.getAbsolutePath) ++ Seq("-loglevel", "panic")
-  }
+    val optionalInput =
+      if(videoCodec(mediainfo).contains("WMV3")) {
+        Some(Seq("-c:v", "wmv3"))
+      } else None
+    val mandatoryInput = Seq(
+      "ffmpeg",
+      "-y",
+      "-i",
+      input.getAbsolutePath,
+      "-loglevel",
+      "fatal"
+    )
+    optionalInput.fold(mandatoryInput){ input => mandatoryInput ++ input }}
 
 }
