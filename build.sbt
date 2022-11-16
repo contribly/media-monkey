@@ -28,7 +28,7 @@ libraryDependencies ++= Seq(
 
 javaOptions in Universal ++= Seq(
   // -J params will be added as jvm parameters
-  "-J-Xmx2048m"
+  "-J-Xmx4096m"
 )
 
 enablePlugins(GitVersioning)
