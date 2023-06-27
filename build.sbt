@@ -12,6 +12,7 @@ libraryDependencies += ws
 
 libraryDependencies += "org.apache.tika" % "tika-core" % "1.11"
 libraryDependencies += "com.github.jai-imageio" % "jai-imageio-jpeg2000" % "1.3.0"
+libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.34.0"
 // libraryDependencies += "com.typesafe.play" %% "anorm" % "2.4.0"
 libraryDependencies += "org.im4java" % "im4java" % "1.4.0"
 libraryDependencies += "org.openimaj" % "core" % "1.3.6"
