@@ -1,5 +1,4 @@
 import java.io.File
-
 import org.specs2.mutable._
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSResponse
@@ -191,7 +190,7 @@ class MediaMonkeySpec extends Specification with ResponseToFileWriter with TestW
       response.header("Content-Type").get must equalTo("video/mp4")
 
       val jsonMeta = metadataForResponse(response)
-      (jsonMeta \ "summary" \ "contentType").toOption.get.as[String] must equalTo("application/mp4")
+      (jsonMeta \ "summary" \ "contentType").toOption.get.as[String] must equalTo("video/mp4")
     }
   }
 

@@ -27,7 +27,7 @@ trait MetadataFunctions extends MediainfoInterpreter {
   )
 
   private val RecognisedVideoTypes = Seq(
-    "application/mp4",
+    "video/mp4",
     "video/3gpp",
     "video/m2ts",
     "video/mp4",
@@ -42,11 +42,29 @@ trait MetadataFunctions extends MediainfoInterpreter {
     "video/webm"
   )
 
+  private val RecognisedAudioTypes = Seq(
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/mp4",
+    "audio/ogg",
+    "audio/wav",
+    "audio/wave",
+    "audio/x-wav",
+    "audio/x-pn-wav",
+    "audio/vnd.wave",
+    "audio/webm",
+    "audio/aac",
+    "audio/flac",
+    "audio/x-flac",
+  )
+
   def inferMediaTypeFromContentType(contentType: String): Option[MediaType] = {
     if (RecognisedImageTypes.contains(contentType)) { // TODO not stricly true; something can be an image without having to be supported
       Some(MediaType.Image)
     } else if (RecognisedVideoTypes.contains(contentType)) {
       Some(MediaType.Video)
+    } else if (RecognisedAudioTypes.contains(contentType)) {
+      Some(MediaType.Audio)
     } else {
       None
     }
@@ -121,6 +139,17 @@ trait MetadataFunctions extends MediainfoInterpreter {
         None,
         mits)
     }
+  }
+
+  def inferAudioSpecificAttributes(metadata: Map[String, String]): FormatSpecificAttributes = {
+
+    FormatSpecificAttributes(
+      None,
+      None,
+      None,
+      None,
+      None)
+
   }
 
 }

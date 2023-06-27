@@ -26,7 +26,7 @@ class TikaService @Inject()(configuration: Configuration, ws: WSClient, akkaSyst
 
     val tenSeconds = Duration(10, TimeUnit.SECONDS)
 
-    Logger.info("Posting submitted file to Tika for typing")
+//    Logger.info("Posting submitted file to Tika for typing")
     val response = ws.url(tikaUrl + "/meta").withRequestTimeout(tenSeconds).addHttpHeaders(("Accept", "application/json; charset=UTF-8")).put(f)
     response.map { r =>
       r.status match {

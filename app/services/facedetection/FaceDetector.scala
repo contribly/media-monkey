@@ -35,7 +35,7 @@ class FaceDetector @Inject()() {
         model.DetectedFace(bounds = model.Bounds(topLeftBound, bottomRightBound), confidence = r.getConfidence)
       }
 
-      Logger.info("Detected " + detected.size + " in " + new Duration(start, DateTime.now))
+//      Logger.info("Detected " + detected.size + " in " + new Duration(start, DateTime.now))
       detected
     }
   }

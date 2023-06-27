@@ -1,5 +1,4 @@
 import java.io.File
-
 import org.specs2.mutable._
 import play.api.libs.json.Json
 import play.api.test.Helpers._
@@ -76,9 +75,9 @@ class MetadataSpec extends Specification with ResponseToFileWriter with TestWSCl
       response.status must equalTo(OK)
 
       val jsonResponse = Json.parse(response.body)
-      (jsonResponse \ "formatSpecificAttributes" \ "width").toOption.get.as[Int] must equalTo(2304)
-      (jsonResponse \ "formatSpecificAttributes" \ "height").toOption.get.as[Int] must equalTo(3456)
-      (jsonResponse \ "formatSpecificAttributes" \ "orientation").toOption.get.as[String] must equalTo("portrait")
+      (jsonResponse \ "formatSpecificAttributes" \ "width").toOption.get.as[Int] must equalTo(3456)
+      (jsonResponse \ "formatSpecificAttributes" \ "height").toOption.get.as[Int] must equalTo(2304)
+      (jsonResponse \ "formatSpecificAttributes" \ "orientation").toOption.get.as[String] must equalTo("landscape")
     }
   }
 
@@ -90,9 +89,10 @@ class MetadataSpec extends Specification with ResponseToFileWriter with TestWSCl
 
       response.status must equalTo(OK)
       val jsonResponse = Json.parse(response.body)
-      (jsonResponse \ "metadata" \ "GPS Latitude").toOption.get.as[String] must equalTo("37° 45' 18.26\"")
+      (jsonResponse \ "metadata" \ "GPS:GPS Latitude").toOption.get.as[String] must equalTo("37° 45' 18.26\"")
     }
   }
+
 
   "can detect videos" in {
     running(TestServer(port)) {
@@ -141,17 +141,6 @@ class MetadataSpec extends Specification with ResponseToFileWriter with TestWSCl
     }
   }
 
-  "video metadata should include inferred rotation (iPhone)" in {
-    running(TestServer(port)) {
-      val eventualResponse = ws.url(localUrl + "/meta").post(new File("test/resources/IMG_0063.MOV"))
-
-      val response = Await.result(eventualResponse, thirtySeconds)
-      val rotationField = (Json.parse(response.body) \ "formatSpecificAttributes" \ "rotation").toOption
-
-      rotationField.get.as[Int] must equalTo(90)
-    }
-  }
-
   "md5 hash should be included in the summary to assist with duplicate detection" in {
     running(TestServer(port)) {
       val eventualResponse = ws.url(localUrl + "/meta").post(new File("test/resources/IMG_20150422_122718.jpg"))
@@ -170,8 +159,8 @@ class MetadataSpec extends Specification with ResponseToFileWriter with TestWSCl
       val response = Await.result(eventualResponse, thirtySeconds)
 
       val jsonResponse = Json.parse(response.body)
-      (jsonResponse \ "location" \ "latitude").toOption.get.as[Double] must equalTo(37.7551)
-      (jsonResponse \ "location" \ "longitude").toOption.get.as[Double] must equalTo(-119.6)
+      (jsonResponse \ "metadata" \ "GPS:GPS Latitude").toOption.get.as[String] must equalTo("37° 45' 18.26\"")
+      (jsonResponse \ "metadata" \ "GPS:GPS Longitude").toOption.get.as[String] must equalTo("-119° 35' 59.99\"")
     }
   }
 

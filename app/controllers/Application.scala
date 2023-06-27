@@ -210,7 +210,6 @@ class Application @Inject()(
 
         } { r =>
           val startTime = DateTime.now
-          Logger.info("Calling back to " + c)
           val of: OutputFormat = r._3
 
           val source = FileIO.fromFile(r._1)
@@ -220,7 +219,7 @@ class Application @Inject()(
             val duration = new org.joda.time.Duration(startTime, DateTime.now)
             rp.status match {
               case 202 =>
-                Logger.info("Response from callback url " + c + ": " + rp.status + " after " + duration.toStandardSeconds.toStandardDays)
+                Logger.trace("Response from callback url " + c + ": " + rp.status + " after " + duration.toStandardSeconds.toStandardDays)
               case _ =>
                 Logger.warn("Unexpected response from callback url " + c + ": " + rp.status + " after " + duration.toStandardSeconds.toStandardDays + ": " + rp.body)
             }

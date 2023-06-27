@@ -1,18 +1,24 @@
 <configuration>
-    
+
   <conversionRule conversionWord="coloredLevel" converterClass="play.api.libs.logback.ColoredLevel" />
 
   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-     <encoder>
-       <pattern>%date [%level] from %logger in %thread - %message%n%xException</pattern>
-     </encoder>
+    <encoder>
+      <pattern>%date{"HH:mm:ss.SSS"} %coloredLevel %logger - %msg%n</pattern>
+    </encoder>
   </appender>
 
+  <!-- Set logging for all Play library classes to INFO -->
   <logger name="play" level="INFO" />
+  <!-- Set logging for Application to INFO -->
   <logger name="application" level="INFO" />
+  <!-- Set Akka to warn -->
+  <logger name="akka" level="ERROR"/>
+  <!-- Set logging for all Play library classes to INFO -->
+  <logger name="controller" level="INFO" />
 
   <root level="WARN">
     <appender-ref ref="STDOUT" />
   </root>
-  
+
 </configuration>
