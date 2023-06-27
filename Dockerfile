@@ -1,28 +1,19 @@
-# This Dockerfile has two required ARGs to determine which base image
-# to use for the JDK and which sbt version to install.
+# The base image
+FROM debian:buster
 
-ARG OPENJDK_TAG=8
-FROM openjdk:${OPENJDK_TAG}
-
-ARG SBT_VERSION=1.3.5
-
-# prevent this error: java.lang.IllegalStateException: cannot run sbt from root directory without -Dsbt.rootdir=true; see sbt/sbt#1458
+# Set the working directory
 WORKDIR /app
 
-# Install sbt
-RUN \
-  mkdir /working/ && \
-  cd /working/ && \
-  curl -L -o sbt-$SBT_VERSION.deb https://repo.scala-sbt.org/scalasbt/debian/sbt-$SBT_VERSION.deb && \
-  dpkg -i sbt-$SBT_VERSION.deb && \
-  rm sbt-$SBT_VERSION.deb && \
-  apt-get update -y && \
-  apt-get install sbt -y && \
-  apt-get install openjdk-11-jre-headless -y && \
-  apt-get install imagemagick -y && \
-  apt-get install ffmpeg -y && \
-  apt-get install mediainfo -y && \
-  apt-get install libimage-exiftool-perl -y && \
-  cd && \
-  rm -r /working/ && \
-  sbt sbtVersion
+# Updating the system and installing necessary software
+RUN apt-get update && \
+    apt-get install -y curl gnupg imagemagick ffmpeg mediainfo libimage-exiftool-perl webp && \
+    apt-get install -y openjdk-11-jre-headless && \
+    echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | tee /etc/apt/sources.list.d/sbt.list && \
+    echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee /etc/apt/sources.list.d/sbt_old.list && \
+    curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | apt-key add && \
+    apt-get update && \
+    apt-get install -y sbt && \
+    sbt sbtVersion
+
+# Run as root
+USER root
