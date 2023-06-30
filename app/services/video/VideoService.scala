@@ -149,7 +149,7 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
       "-i",
       input.getAbsolutePath,
       "-loglevel",
-      "fatal"
+      "debug"
     )
     optionalInput.fold(mandatoryInput){ input => mandatoryInput ++ input }}
 
