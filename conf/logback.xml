@@ -9,13 +9,13 @@
   </appender>
 
   <!-- Set logging for all Play library classes to INFO -->
-  <logger name="play" level="DEBUG" />
+  <logger name="play" level="INFO" />
   <!-- Set logging for Application to INFO -->
-  <logger name="application" level="DEBUG" />
+  <logger name="application" level="INFO" />
   <!-- Set Akka to warn -->
-  <logger name="akka" level="DEBUG"/>
+  <logger name="akka" level="INFO"/>
   <!-- Set logging for all Play library classes to INFO -->
-  <logger name="controller" level="DEBUG" />
+  <logger name="controller" level="INFO" />
 
   <root level="WARN">
     <appender-ref ref="STDOUT" />
