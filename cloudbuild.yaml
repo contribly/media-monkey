@@ -7,7 +7,7 @@ steps:
       echo "SBT Version Installed:" && \
       sbt sbtVersion
 
-- name: 'debian:buster'
+- name: 'debian:bookworm'
   entrypoint: 'bash'
   args:
     - '-c'
