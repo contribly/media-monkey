@@ -13,7 +13,7 @@ steps:
     - '-c'
     - |
       apt-get update && \
-      apt-get install -y curl openjdk-11-jre-headless imagemagick ffmpeg mediainfo libimage-exiftool-perl webp && \
+      apt-get install -y curl openjdk-17-jre-headless imagemagick ffmpeg mediainfo libimage-exiftool-perl webp && \
       echo "Installed packages:" && \
       dpkg -l | grep -E 'openjdk|imagemagick|ffmpeg|mediainfo|libimage-exiftool-perl|webp'
 
