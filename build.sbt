@@ -33,19 +33,8 @@ javaOptions in Universal ++= Seq(
   "-J-Xmx4096m"
 )
 
-enablePlugins(GitVersioning)
+enablePlugins(GitVersioning, DockerPlugin)
 
-enablePlugins(DockerPlugin)
 import com.typesafe.sbt.packager.docker._
-dockerBaseImage := "debian:buster"
+dockerBaseImage := "alpine:latest"  // Use Alpine as the base image
 dockerRepository := Option("eu.gcr.io/contribly-dev")
-dockerCommands ++= Seq(
-  Cmd("USER", "root"),
-  ExecCmd("RUN", "apt-get", "update"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "openjdk-11-jre-headless"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "imagemagick"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "ffmpeg"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "mediainfo"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "libimage-exiftool-perl"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "webp")
-)
