@@ -7,19 +7,16 @@ steps:
         echo "SBT Version Installed:" && \
         sbt sbtVersion
 
-  - name: 'archlinux'
-    entrypoint: 'bash'
+  - name: 'alpine:latest'
+    entrypoint: 'sh'
     args:
       - '-c'
       - |
-        # Update mirror list with reliable mirrors
-        curl -s "https://archlinux.org/mirrorlist/?country=GB&protocol=https&use_mirror_status=on" | sed 's/^#Server/Server/' > /etc/pacman.d/mirrorlist && \
-        pacman -Sy reflector --noconfirm && \
-        reflector --latest 5 --protocol https --sort rate --save /etc/pacman.d/mirrorlist && \
-        pacman -Syu --noconfirm && \
-        pacman -S --noconfirm curl jre11-openjdk imagemagick ffmpeg mediainfo perl-image-exiftool libwebp && \
+        apk update && \
+        apk add openjdk11 imagemagick ffmpeg mediainfo perl-image-exiftool libwebp curl && \
         echo "Installed packages:" && \
-        pacman -Qi | grep -E 'jre|imagemagick|ffmpeg|mediainfo|perl-image-exiftool|libwebp'
+        apk info | grep -E 'openjdk|imagemagick|ffmpeg|mediainfo|perl-image-exiftool|libwebp'
+
 
   - name: 'gcr.io/cloud-builders/docker'
     args: ['images']  # Debug step to list Docker images
