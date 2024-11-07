@@ -1,26 +1,33 @@
 steps:
-  - name: 'alpine:latest'
-    entrypoint: 'sh'
+  - name: 'gcr.io/contribly-dev/scala-sbt'
+    entrypoint: 'bash'
     args:
       - '-c'
       - |
-        apk update && \
-        apk add openjdk11 imagemagick ffmpeg mediainfo perl-image-exiftool libwebp curl && \
+        echo "SBT Version Installed:" && \
+        sbt sbtVersion
+
+  - name: 'debian:bookworm'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        apt-get update && \
+        apt-get install -y curl openjdk-17-jre-headless imagemagick ffmpeg mediainfo libimage-exiftool-perl webp && \
         echo "Installed packages:" && \
-        apk info | grep -E 'openjdk|imagemagick|ffmpeg|mediainfo|perl-image-exiftool|libwebp'
+        dpkg -l | grep -E 'openjdk|imagemagick|ffmpeg|mediainfo|libimage-exiftool-perl|webp'
 
   - name: 'gcr.io/contribly-dev/scala-sbt'
-    entrypoint: 'sh'
-    args:
-      - '-c'
-      - |
-        sbt clean docker:publishLocal
+    args: ['clean', 'docker:publishLocal']
 
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'tag'
       - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
       - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['images']  # Debug step to list Docker images
 
   - name: 'gcr.io/cloud-builders/docker'
     args:

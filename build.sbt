@@ -36,5 +36,5 @@ javaOptions in Universal ++= Seq(
 enablePlugins(GitVersioning, DockerPlugin)
 
 import com.typesafe.sbt.packager.docker._
-dockerBaseImage := "alpine:latest"  // Use Alpine as the base image
+dockerBaseImage := "debian:bookworm"  // Use Alpine as the base image
 dockerRepository := Option("eu.gcr.io/contribly-dev")
