@@ -1,12 +1,4 @@
 steps:
-  - name: 'gcr.io/contribly-dev/scala-sbt'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        echo "SBT Version Installed:" && \
-        sbt sbtVersion
-
   - name: 'alpine:latest'
     entrypoint: 'sh'
     args:
@@ -17,24 +9,18 @@ steps:
         echo "Installed packages:" && \
         apk info | grep -E 'openjdk|imagemagick|ffmpeg|mediainfo|perl-image-exiftool|libwebp'
 
-
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['images']  # Debug step to list Docker images
-
   - name: 'gcr.io/contribly-dev/scala-sbt'
-    args: ['clean', 'docker:publishLocal']
-
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['images']  # Debug step to list Docker images
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        sbt clean docker:publishLocal
 
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'tag'
       - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
       - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
-
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['images']  # Debug step to list Docker images
 
   - name: 'gcr.io/cloud-builders/docker'
     args:
