@@ -1,41 +1,45 @@
 steps:
-- name: 'gcr.io/contribly-dev/scala-sbt'
-  entrypoint: 'bash'
-  args:
-    - '-c'
-    - |
-      echo "SBT Version Installed:" && \
-      sbt sbtVersion
+  - name: 'gcr.io/contribly-dev/scala-sbt'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "SBT Version Installed:" && \
+        sbt sbtVersion
 
-- name: 'debian:bookworm'
-  entrypoint: 'bash'
-  args:
-    - '-c'
-    - |
-      apt-get update && \
-      apt-get install -y curl openjdk-17-jre-headless imagemagick ffmpeg mediainfo libimage-exiftool-perl webp && \
-      echo "Installed packages:" && \
-      dpkg -l | grep -E 'openjdk|imagemagick|ffmpeg|mediainfo|libimage-exiftool-perl|webp'
+  - name: 'archlinux'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Update mirror list with reliable mirrors
+        curl -s "https://archlinux.org/mirrorlist/?country=GB&protocol=https&use_mirror_status=on" | sed 's/^#Server/Server/' > /etc/pacman.d/mirrorlist && \
+        pacman -Sy reflector --noconfirm && \
+        reflector --latest 5 --protocol https --sort rate --save /etc/pacman.d/mirrorlist && \
+        pacman -Syu --noconfirm && \
+        pacman -S --noconfirm curl jre11-openjdk imagemagick ffmpeg mediainfo perl-image-exiftool libwebp && \
+        echo "Installed packages:" && \
+        pacman -Qi | grep -E 'jre|imagemagick|ffmpeg|mediainfo|perl-image-exiftool|libwebp'
 
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['images']  # Debug step to list Docker images
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['images']  # Debug step to list Docker images
 
-- name: 'gcr.io/contribly-dev/scala-sbt'
-  args: ['clean', 'docker:publishLocal']
+  - name: 'gcr.io/contribly-dev/scala-sbt'
+    args: ['clean', 'docker:publishLocal']
 
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['images']  # Debug step to list Docker images
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['images']  # Debug step to list Docker images
 
-- name: 'gcr.io/cloud-builders/docker'
-  args:
-    - 'tag'
-    - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
-    - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'tag'
+      - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
+      - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
 
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['images']  # Debug step to list Docker images
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['images']  # Debug step to list Docker images
 
-- name: 'gcr.io/cloud-builders/docker'
-  args:
-    - 'push'
-    - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
