@@ -30,9 +30,6 @@ javaOptions in Universal ++= Seq(
   // -J params will be added as jvm parameters
   // This value dictates the maximum memory value.
   // The corresponding value needs to be changed in the hosting environment, i.e. GCP.
-  // 
-  //
-  "-J--add-opens", "java.base/java.lang=ALL-UNNAMED",
   "-J-Xmx4096m"
 )
 
@@ -40,15 +37,15 @@ enablePlugins(GitVersioning)
 
 enablePlugins(DockerPlugin)
 import com.typesafe.sbt.packager.docker._
-dockerBaseImage := "debian:bookworm"
+dockerBaseImage := "debian:bullseye"
 dockerRepository := Option("eu.gcr.io/contribly-dev")
 dockerCommands ++= Seq(
   Cmd("USER", "root"),
   ExecCmd("RUN", "apt-get", "update"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "openjdk-17-jdk-headless"),
+  ExecCmd("RUN", "apt-get", "install", "-y", "openjdk-11-jre-headless"),
   ExecCmd("RUN", "apt-get", "install", "-y", "imagemagick"),
   ExecCmd("RUN", "apt-get", "install", "-y", "ffmpeg"),
   ExecCmd("RUN", "apt-get", "install", "-y", "mediainfo"),
   ExecCmd("RUN", "apt-get", "install", "-y", "libimage-exiftool-perl"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "webp"),
+  ExecCmd("RUN", "apt-get", "install", "-y", "webp")
 )
