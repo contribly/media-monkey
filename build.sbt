@@ -47,6 +47,6 @@ dockerCommands ++= Seq(
   ExecCmd("RUN", "apt-get", "install", "-y", "ffmpeg"),
   ExecCmd("RUN", "apt-get", "install", "-y", "mediainfo"),
   ExecCmd("RUN", "apt-get", "install", "-y", "libimage-exiftool-perl"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "webp")
+  ExecCmd("RUN", "apt-get", "install", "-y", "webp"),
   ExecCmd("RUN", "echo", "$GUICE_VERSION")
 )
