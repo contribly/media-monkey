@@ -48,5 +48,5 @@ dockerCommands ++= Seq(
   ExecCmd("RUN", "apt-get", "install", "-y", "mediainfo"),
   ExecCmd("RUN", "apt-get", "install", "-y", "libimage-exiftool-perl"),
   ExecCmd("RUN", "apt-get", "install", "-y", "webp"),
-  ExecCmd("RUN", "echo", "$GUICE_VERSION")
+  ExecCmd("RUN", "export GUICE_VERSION=$(grep 'guice' $HOME/.ivy2/cache/*/ivydata-*.xml | grep -oP '(?<=\')(.*?)(?=\')') && echo $GUICE_VERSION")
 )
