@@ -42,11 +42,10 @@ dockerRepository := Option("eu.gcr.io/contribly-dev")
 dockerCommands ++= Seq(
   Cmd("USER", "root"),
   ExecCmd("RUN", "apt-get", "update"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "openjdk-17-jre-headless"),
+  ExecCmd("RUN", "apt-get", "install", "-y", "openjdk-17-jdk-headless"),
   ExecCmd("RUN", "apt-get", "install", "-y", "imagemagick"),
   ExecCmd("RUN", "apt-get", "install", "-y", "ffmpeg"),
   ExecCmd("RUN", "apt-get", "install", "-y", "mediainfo"),
   ExecCmd("RUN", "apt-get", "install", "-y", "libimage-exiftool-perl"),
   ExecCmd("RUN", "apt-get", "install", "-y", "webp"),
-  ExecCmd("RUN", "export GUICE_VERSION=$(grep 'guice' $HOME/.ivy2/cache/*/ivydata-*.xml | grep -oP '(?<=\')(.*?)(?=\')') && echo $GUICE_VERSION")
 )
