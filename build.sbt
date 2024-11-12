@@ -37,15 +37,10 @@ enablePlugins(GitVersioning)
 
 enablePlugins(DockerPlugin)
 import com.typesafe.sbt.packager.docker._
-dockerBaseImage := "debian:bullseye"
+dockerBaseImage := "archlinux/archlinux:latest"
 dockerRepository := Option("eu.gcr.io/contribly-dev")
 dockerCommands ++= Seq(
-  Cmd("USER", "root"),
-  ExecCmd("RUN", "apt-get", "update"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "openjdk-11-jre-headless"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "imagemagick"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "ffmpeg"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "mediainfo"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "libimage-exiftool-perl"),
-  ExecCmd("RUN", "apt-get", "install", "-y", "webp")
+    Cmd("USER", "root"),
+    ExecCmd("RUN", "pacman", "-Syu", "--noconfirm"),
+    ExecCmd("RUN", "pacman", "-S", "--noconfirm", "jre11-openjdk-headless", "imagemagick", "ffmpeg", "mediainfo", "perl-image-exiftool", "extra/libwebp")
 )
