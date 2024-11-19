@@ -90,7 +90,7 @@ class ExiftoolService @Inject()(val temporaryFileCreator: TemporaryFileCreator) 
       }
 
       val cmd = Seq("exiftool") ++ tagArguments.map(_._1) :+ outputFile.file.getAbsolutePath
-      Logger.info("Exiftool command: " + cmd)
+      Logger.debug("Exiftool command: " + cmd)
 
       val out = new StringBuilder()
       val logger = ProcessLogger(l => {
@@ -100,7 +100,7 @@ class ExiftoolService @Inject()(val temporaryFileCreator: TemporaryFileCreator) 
       val process = cmd.run(logger)
       val exitValue = process.exitValue()
 
-      Logger.info("Clearing down " + tagArguments.size + " temp files after exiftool")
+      Logger.debug("Clearing down " + tagArguments.size + " temp files after exiftool")
       tagArguments.map { ta =>
         ta._2.file.delete()
       }

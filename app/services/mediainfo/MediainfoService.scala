@@ -14,7 +14,7 @@ class MediainfoService @Inject()(val mediainfoParser: MediainfoParser) {
 
   def mediainfo(f: File): Future[Option[Seq[Track]]] = {
     Future {
-      Logger.info(f.toString)
+      Logger.debug(f.toString)
       val mediainfoCmd = Seq("mediainfo", "--Output=XML", f.getAbsolutePath)
 
       val out: StringBuilder = new StringBuilder()

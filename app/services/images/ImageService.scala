@@ -64,7 +64,7 @@ class ImageService @Inject()(akkaSystem: ActorSystem) {
     op.addImage()
 
     Future {
-      Logger.info("Applying ImageMagik operation to input file: " + input.getAbsoluteFile + ": " + input.canRead)
+      Logger.debug("Applying ImageMagik operation to input file: " + input.getAbsoluteFile + ": " + input.canRead)
 
       val outputFile = File.createTempFile("workingimage", "." + "jpg")
       try {

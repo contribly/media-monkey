@@ -22,7 +22,7 @@ class FaceDetector @Inject()() {
         BigDecimal.decimal(percentage).setScale(1, BigDecimal.RoundingMode.HALF_UP).toDouble
       }
 
-      Logger.info("Detecting faces in file: " + source.getAbsolutePath)
+      Logger.debug("Detecting faces in file: " + source.getAbsolutePath)
       val start = DateTime.now()
 
       val fImage = ImageUtilities.readF(source)

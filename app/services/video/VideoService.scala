@@ -50,7 +50,7 @@ class VideoService @Inject()(val akkaSystem: ActorSystem, mediainfoService: Medi
 
 
         if (exitValue == 0) {
-          Logger.info("Thumbnail:" + outputSize + " - to: " + output.getAbsolutePath)
+          Logger.debug("Thumbnail:" + outputSize + " - to: " + output.getAbsolutePath)
           val duration = Duration.between(startTime, Instant.now).toMillis
           Logger.info(s"Thumbnail: $outputSize creation took $duration ms")
           Some(output)
