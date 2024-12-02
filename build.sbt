@@ -41,6 +41,7 @@ dockerBaseImage := "archlinux/archlinux:latest"
 dockerRepository := Option("eu.gcr.io/contribly-dev")
 dockerCommands ++= Seq(
     Cmd("USER", "root"),
-    ExecCmd("RUN", "pacman", "-Syu", "--noconfirm"),
-    ExecCmd("RUN", "pacman", "-S", "--noconfirm", "jre11-openjdk-headless", "imagemagick", "ffmpeg", "mediainfo", "perl-image-exiftool", "extra/libwebp")
+    Cmd("RUN", "pacman", "-Syu", "--noconfirm"),
+    Cmd("RUN", "pacman", "-S", "--noconfirm", "jre11-openjdk-headless", "imagemagick", "ffmpeg", "mediainfo", "perl-image-exiftool", "extra/libwebp"),
+    Cmd("RUN", "ln", "-s", "/usr/bin/vendor_perl/exiftool", "/usr/bin/exiftool")
 )
