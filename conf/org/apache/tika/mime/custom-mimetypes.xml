@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info>
+    <mime-type type="image/heic">
+        <_comment>HEIF Image using HEVC Codec</_comment>
+        <acronym>HEIC</acronym>
+        <magic priority="60">
+            <match value="ftypheic" type="string" offset="4"/>
+            <match value="ftypheix" type="string" offset="4"/>
+        </magic>
+        <glob pattern="*.heic"/>
+    </mime-type>
+</mime-info>
