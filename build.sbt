@@ -6,6 +6,7 @@ scalaVersion := "2.12.13"
 
 resolvers += "openimaj" at "http://maven.openimaj.org"
 resolvers += "billylieurance-net" at "http://www.billylieurance.net/maven2"
+resolvers += "gael" at "https://repository.gael-systems.com/repository/public"
 
 libraryDependencies += guice
 libraryDependencies += ws
