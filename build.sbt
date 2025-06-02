@@ -31,7 +31,8 @@ javaOptions in Universal ++= Seq(
   // -J params will be added as jvm parameters
   // This value dictates the maximum memory value.
   // The corresponding value needs to be changed in the hosting environment, i.e. GCP.
-  "-J-Xmx4096m"
+  "-J-XX:+PrintFlagsFinal",
+  "-J-XX:MaxRAMPercentage=75"
 )
 
 enablePlugins(GitVersioning)
