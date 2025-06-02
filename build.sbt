@@ -6,6 +6,7 @@ scalaVersion := "2.12.13"
 
 resolvers += "openimaj" at "http://maven.openimaj.org"
 resolvers += "billylieurance-net" at "http://www.billylieurance.net/maven2"
+resolvers += "gael" at "https://repository.gael-systems.com/repository/public"
 
 libraryDependencies += guice
 libraryDependencies += ws
@@ -30,7 +31,8 @@ javaOptions in Universal ++= Seq(
   // -J params will be added as jvm parameters
   // This value dictates the maximum memory value.
   // The corresponding value needs to be changed in the hosting environment, i.e. GCP.
-  "-J-Xmx4096m"
+  "-J-XX:+PrintFlagsFinal",
+  "-J-XX:MaxRAMPercentage=75"
 )
 
 enablePlugins(GitVersioning)
