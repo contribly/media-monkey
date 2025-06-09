@@ -11,13 +11,12 @@ resolvers += "gael" at "https://repository.gael-systems.com/repository/public"
 libraryDependencies += guice
 libraryDependencies += ws
 
-libraryDependencies += "org.apache.tika" % "tika-core" % "1.11"
-// libraryDependencies += "com.typesafe.play" %% "anorm" % "2.4.0"
+libraryDependencies += "org.apache.tika" % "tika-core" % "2.9.4"
+libraryDependencies += "org.apache.tika" % "tika-parsers-standard-package" % "2.9.4"
 libraryDependencies += "org.im4java" % "im4java" % "1.4.0"
 libraryDependencies += "org.openimaj" % "core" % "1.3.6"
 libraryDependencies += "org.openimaj" % "core-image" % "1.3.6"
 libraryDependencies += "org.openimaj" % "faces" % "1.3.6"
-libraryDependencies += "us.fatehi" % "pointlocation6709" % "4.1"
 libraryDependencies += "commons-io" % "commons-io" % "2.5"
 
 // test deps

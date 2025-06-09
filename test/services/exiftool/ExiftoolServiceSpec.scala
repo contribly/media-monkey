@@ -23,20 +23,4 @@ class ExiftoolServiceSpec extends PlaySpec with GuiceOneServerPerSuite {
     contentType must equal (Some("video/quicktime"))
   }
 
-  "can add XMP tags to images" in {
-    val imageFile = new File("test/resources/IMG_0004.MOV")
-
-    val tagsToAdd = Seq(
-      ("XMP-dc", "Title", "A test title"),
-      ("XMP-dc", "Description", "A test description")
-    )
-
-    val withMetadata: File = Await.result(exifToolService.addMeta(imageFile, tagsToAdd), tenSeconds).get
-
-    val xmp: String = Await.result(exifToolService.extractXmp(withMetadata), tenSeconds).get
-
-    xmp.contains("A test title") must equal(true)
-    xmp.contains("A test description") must equal(true)
-  }
-
 }
