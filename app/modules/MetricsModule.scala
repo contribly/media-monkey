@@ -1,7 +1,8 @@
 package modules
 
 import akka.stream.Materializer
-import io.micrometer.core.instrument.binder.jvm.{JvmGcMetrics, JvmMemoryMetrics, JvmThreadMetrics}
+import io.micrometer.core.instrument.binder.jvm.{JvmGcMetrics, JvmInfoMetrics, JvmMemoryMetrics, JvmThreadMetrics}
+import io.micrometer.core.instrument.binder.system.ProcessorMetrics
 import io.micrometer.core.instrument.{MeterRegistry, Timer}
 import io.micrometer.prometheusmetrics.{PrometheusConfig, PrometheusMeterRegistry}
 import io.prometheus.metrics.exporter.httpserver.HTTPServer
@@ -15,6 +16,8 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class MetricsModule extends play.api.inject.SimpleModule((_,config)=>{
   val registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
+  new ProcessorMetrics().bindTo(registry);
+  new JvmInfoMetrics().bindTo(registry);
   new JvmMemoryMetrics().bindTo(registry);
   new JvmGcMetrics().bindTo(registry);
   new JvmThreadMetrics().bindTo(registry);
