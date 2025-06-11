@@ -2,21 +2,24 @@ package services.geo
 
 import model.LatLong
 
-trait ExifLocationExtractor extends ExifLatLongParser with ISO6709Parser {
+trait ExifLocationExtractor {
 
   def extractLocationFrom(metadata: Map[String, String]): Option[LatLong] = {
-
-    val possibleExifLocation = extractGPSLatLongFromMetadata(metadata)
-    val possibleQuicktimeLocation = metadata.get("comapplequicktimelocationISO6709").flatMap (l => parseISO6709LatLong(l))
-    val possibleAndroidLocation = metadata.get("xyz").flatMap ( l => parseISO6709LatLong(l))
-
-    Seq(possibleExifLocation, possibleQuicktimeLocation, possibleAndroidLocation).flatten.headOption.flatMap { ll =>
-      if (ll != LatLong(0, 0)) {
-        Some(ll)
-      } else {
-        None
+    metadata.get("geo:lat").flatMap(tryParse).flatMap { lat =>
+      metadata.get("geo:long").flatMap(tryParse).flatMap { long =>
+        if (lat != 0 || long != 0) {
+          Some(LatLong(lat, long))
+        } else {
+          None
+        }
       }
     }
+  }
+
+  private def tryParse(str: String): Option[Double] = try {
+    Some(str.toDouble)
+  } catch {
+    case _ => None
   }
 
 }
