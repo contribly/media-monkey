@@ -1,14 +1,10 @@
 steps:
-  - name: 'gcr.io/contribly-dev/scala-sbt'
-    args: ['clean', 'docker:publishLocal']
-
+  - name: 'hseeberger/scala-sbt:graalvm-ce-21.0.0-java11_1.4.9_2.12.13'
+    timeout: 800s
+    args: ['sbt', 'clean', 'docker:stage']
   - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'tag'
-      - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
-      - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
-
+    args: ['build', '-t', 'media-monkey:0.1.0-SNAPSHOT', 'target/docker/stage']
   - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'eu.gcr.io/contribly-dev/media-monkey:$COMMIT_SHA'
+    args: [ 'tag', 'media-monkey:0.1.0-SNAPSHOT', 'eu.gcr.io/$PROJECT_ID/media-monkey:$COMMIT_SHA' ]
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'eu.gcr.io/$PROJECT_ID/media-monkey:$COMMIT_SHA']    
