@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.binder.system.ProcessorMetrics
 import io.micrometer.core.instrument.{MeterRegistry, Timer}
 import io.micrometer.prometheusmetrics.{PrometheusConfig, PrometheusMeterRegistry}
 import io.prometheus.metrics.exporter.httpserver.HTTPServer
+import play.api.Configuration
 import play.api.http.Status
 import play.api.inject.{ApplicationLifecycle, bind}
 import play.api.mvc.{Filter, RequestHeader, Result}
@@ -29,9 +30,9 @@ class MetricsModule extends play.api.inject.SimpleModule((_,config)=>{
   )
 })
 
-class PrometheusEndpointStarter @Inject()(lifecycle: ApplicationLifecycle, registry: PrometheusMeterRegistry) {
+class PrometheusEndpointStarter @Inject()(lifecycle: ApplicationLifecycle, registry: PrometheusMeterRegistry, config: Configuration) {
   val server: HTTPServer = HTTPServer.builder()
-    .port(3000)
+    .port(config.getOptional[Int]("metrics.port").getOrElse(3000))
     .registry(registry.getPrometheusRegistry)
     .buildAndStart()
 

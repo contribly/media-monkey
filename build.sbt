@@ -38,6 +38,8 @@ javaOptions in Universal ++= Seq(
 
 enablePlugins(GitVersioning)
 
+PlayKeys.devSettings := Seq("play.server.http.port" -> "9010")
+
 enablePlugins(DockerPlugin)
 import com.typesafe.sbt.packager.docker._
 dockerBaseImage := "archlinux/archlinux:latest"
