@@ -33,6 +33,7 @@ javaOptions in Universal ++= Seq(
   // This value dictates the maximum memory value.
   // The corresponding value needs to be changed in the hosting environment, i.e. GCP.
   "-J-XX:+PrintFlagsFinal",
+  "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
   "-J-XX:MaxRAMPercentage=75"
 )
 
