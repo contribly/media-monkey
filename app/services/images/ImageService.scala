@@ -1,8 +1,9 @@
 package services.images
 
 import java.io.File
-
 import akka.actor.ActorSystem
+import io.micrometer.core.instrument.{MeterRegistry, Timer}
+
 import javax.inject.Inject
 import org.im4java.core.{ConvertCmd, IMOperation, Info}
 import org.joda.time.DateTime
@@ -10,7 +11,20 @@ import play.api.Logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class ImageService @Inject()(akkaSystem: ActorSystem) {
+class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegistry) {
+
+  private val cropMeter = Timer.builder("contribly.mediamonkey.image_crop")
+    .description("MediaMonkey image crop")
+    .publishPercentileHistogram()
+    .withRegistry(meterRegistry)
+  private val workResizeMeter = Timer.builder("contribly.mediamonkey.image_work_resize")
+    .description("MediaMonkey image resize for processing")
+    .publishPercentileHistogram()
+    .withRegistry(meterRegistry)
+  private val resizeMeter = Timer.builder("contribly.mediamonkey.image_resize")
+    .description("MediaMonkey image resize")
+    .publishPercentileHistogram()
+    .withRegistry(meterRegistry)
 
   def info(input: File): Future[(Int, Int)] = {
     implicit val imageProcessingExecutionContext = akkaSystem.dispatchers.lookup("image-processing-context")
@@ -39,7 +53,9 @@ class ImageService @Inject()(akkaSystem: ActorSystem) {
       try {
         val start = DateTime.now
         val cmd: ConvertCmd = new ConvertCmd()
+        val sample = Timer.start(meterRegistry)
         cmd.run(imCropOperation(width, height, x, y), input.getAbsolutePath, outputFile.getAbsolutePath())
+        sample.stop(cropMeter.withTags("size", s"${width}x$height"))
 
         val duration = DateTime.now.getMillis - start.getMillis
         Logger.info("Completed ImageMagik crop operation " + Seq(width, height, x, y) + " output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
@@ -70,7 +86,9 @@ class ImageService @Inject()(akkaSystem: ActorSystem) {
       try {
         val start = DateTime.now
         val cmd: ConvertCmd = new ConvertCmd()
+        val sample = Timer.start(meterRegistry)
         cmd.run(op, input.getAbsolutePath, outputFile.getAbsolutePath())
+        sample.stop(workResizeMeter.withTags())
 
         val duration = DateTime.now.getMillis - start.getMillis
         Logger.info("Completed ImageMagik working image operation output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
@@ -137,7 +155,9 @@ class ImageService @Inject()(akkaSystem: ActorSystem) {
       try {
         val start = DateTime.now
         val cmd = new ConvertCmd()
+        val sample = Timer.start(meterRegistry)
         cmd.run(imResizeOperation(width, height, rotate, fill), input.getAbsolutePath, outputFile.getAbsolutePath())
+        sample.stop(resizeMeter.withTags("size", s"${width.getOrElse(0)}x${height.getOrElse(0)}"))
 
         val duration = DateTime.now.getMillis - start.getMillis
         Logger.info("Completed ImageMagik resize operation " + Seq(width, height, rotate, fill) + " output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")

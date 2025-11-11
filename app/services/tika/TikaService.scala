@@ -1,6 +1,7 @@
 package services.tika
 
 import akka.actor.ActorSystem
+import io.micrometer.core.instrument.{MeterRegistry, Timer}
 import org.apache.tika.metadata.Metadata
 import org.apache.tika.mime.MimeTypes
 import org.apache.tika.parser.AutoDetectParser
@@ -8,12 +9,18 @@ import org.xml.sax.helpers.DefaultHandler
 import play.api.Logger
 
 import java.io.File
-import java.nio.file.Files
+import java.nio.file.{Files, Paths}
+import java.time.{Duration, Instant}
 import javax.inject.Inject
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 
-class TikaService @Inject() (akkaSystem: ActorSystem) {
+class TikaService @Inject() (akkaSystem: ActorSystem, meterRegistry: MeterRegistry) {
+
+  private val tikaMeter = Timer.builder("contribly.mediamonkey.tika")
+    .description("MediaMonkey tika operations")
+    .publishPercentileHistogram()
+    .withRegistry(meterRegistry)
 
   lazy val parser = new AutoDetectParser()
 

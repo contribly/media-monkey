@@ -1,7 +1,8 @@
 package services.facedetection
 
-import java.io.File
+import io.micrometer.core.instrument.{MeterRegistry, Timer}
 
+import java.io.File
 import javax.inject.Inject
 import model.Point
 import org.joda.time.{DateTime, Duration}
@@ -12,7 +13,12 @@ import play.api.Logger
 import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
 
-class FaceDetector @Inject()() {
+class FaceDetector @Inject()(meterRegistry: MeterRegistry) {
+
+  private val meter = Timer.builder("contribly.mediamonkey.face_detect")
+    .description("MediaMonkey face detection")
+    .publishPercentileHistogram()
+    .withRegistry(meterRegistry)
 
   def detectFaces(source: File)(implicit ec: ExecutionContext): Future[Seq[model.DetectedFace]] = {
     Future {
@@ -25,6 +31,7 @@ class FaceDetector @Inject()() {
       Logger.debug("Detecting faces in file: " + source.getAbsolutePath)
       val start = DateTime.now()
 
+      val sample = Timer.start(meterRegistry)
       val fImage = ImageUtilities.readF(source)
       val detected = new HaarCascadeDetector().detectFaces(fImage).map { r =>
         val b = r.getBounds()
@@ -34,6 +41,7 @@ class FaceDetector @Inject()() {
 
         model.DetectedFace(bounds = model.Bounds(topLeftBound, bottomRightBound), confidence = r.getConfidence)
       }
+      sample.stop(meter.withTags())
 
 //      Logger.info("Detected " + detected.size + " in " + new Duration(start, DateTime.now))
       detected
