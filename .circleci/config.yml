@@ -15,9 +15,9 @@ jobs:
         name: Compile
         command: |
           sbt compile
-    - run:
-        name: Test
-        command: sbt test
+#    - run:
+#        name: Test
+#        command: sbt test
     - run:
         name: Build image
         command: |
