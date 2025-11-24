@@ -1,0 +1,112 @@
+version: 2.1
+
+jobs:
+  build-and-test:
+    docker:
+    - image: europe-west2-docker.pkg.dev/contribly-dev/contribly-public/circleci-java-builder:11.0.28-2025.10
+    resource_class: medium
+    environment:
+      IMAGE_NAME: eu.gcr.io/contribly-dev/media-monkey
+    steps:
+    - setup_remote_docker:
+        docker_layer_caching: true
+    - checkout
+    - run:
+        name: Compile
+        command: |
+          sbt compile
+#    - run:
+#        name: Test
+#        command: sbt test
+    - run:
+        name: Build image
+        command: |
+          echo "$GCLOUD_SERVICE_KEY" | docker login -u _json_key --password-stdin eu.gcr.io
+          sbt docker:stage
+          docker build -t $IMAGE_NAME:$CIRCLE_SHA1 target/docker/stage
+          docker push $IMAGE_NAME:$CIRCLE_SHA1
+
+  publish:
+    parameters:
+      environment:
+        type: string
+    docker:
+    - image: cimg/base:current
+    resource_class: small
+    environment:
+      COMPONENT: mediaMonkey
+      ENVIRONMENT: << parameters.environment >>
+    steps:
+    - run:
+        name: Updating helm-charts repository
+        command: |
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+          
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          echo "$HELM_PUBLISH_SSH_KEY" | base64 -d > ~/.ssh/helm_publish_key
+          chmod 600 ~/.ssh/helm_publish_key
+          SSH_AUTH_SOCK= GIT_SSH_COMMAND='ssh -i ~/.ssh/helm_publish_key -F /dev/null' git clone --depth=1 git@github.com:contribly/helm-charts.git
+          cd helm-charts
+          
+          cat config/contribly/$ENVIRONMENT.yaml | sed '/^$/s//#BLANK_LINE/' | yq ".$COMPONENT.image.tag = \"$CIRCLE_SHA1\"" | sed 's/#BLANK_LINE//g' > $ENVIRONMENT.yaml
+          mv $ENVIRONMENT.yaml config/contribly/$ENVIRONMENT.yaml
+          git diff
+          git diff --shortstat | grep --quiet " 1 insertion" || { echo "Unexpected contents of configuration patch, aborting!"; exit 1; }
+          git diff --shortstat | grep --quiet " 1 deletion" || { echo "Unexpected contents of configuration patch, aborting!"; exit 1; }
+          
+          git config --global user.email "ci@contribly.com"
+          git config --global user.name "CircleCI"
+          git add config/contribly/$ENVIRONMENT.yaml
+          git commit -m "Update $ENVIRONMENT $COMPONENT image tag"
+          SSH_AUTH_SOCK= GIT_SSH_COMMAND='ssh -i ~/.ssh/helm_publish_key -F /dev/null' git push
+          
+          echo "Published image tag $CIRCLE_SHA1 to $ENVIRONMENT $COMPONENT configuration"
+          circleci run release log --environment-name=$ENVIRONMENT --component-name=$COMPONENT --target-version=$CIRCLE_SHA1
+
+  patch-approve-status:
+    parameters:
+      environment:
+        type: string
+    docker:
+    - image: cimg/base:current
+    resource_class: small
+    environment:
+      APPROVE_JOB_NAME: build/approve-<< parameters.environment >>
+    steps:
+    - checkout
+    - run: .circleci/patch-approve-status.sh
+
+
+workflows:
+  build:
+    jobs:
+    - build-and-test:
+        context: artifact-registry-builder
+    - approve:
+        name: approve-<< matrix.environment >>
+        type: approval
+        requires:
+        - build-and-test
+        matrix:
+          parameters:
+            environment: ["staging", "showcase", "production"]
+    - patch-approve-status:
+        name: patch-approve-status-<< matrix.environment >>
+        requires:
+        - build-and-test
+        context:
+        - helm-publish
+        matrix:
+          parameters:
+            environment: ["staging", "showcase", "production"]
+    - publish:
+        name: publish-<< matrix.environment >>
+        requires:
+        - approve-<< matrix.environment >>
+        context:
+        - env-<< matrix.environment >>
+        - helm-publish
+        matrix:
+          parameters:
+            environment: ["staging", "showcase", "production"]
