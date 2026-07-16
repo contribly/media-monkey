@@ -90,7 +90,7 @@ workflows:
         - build-and-test
         matrix:
           parameters:
-            environment: ["staging", "showcase", "production"]
+            environment: ["staging", "production"]
     - patch-approve-status:
         name: patch-approve-status-<< matrix.environment >>
         requires:
@@ -99,7 +99,7 @@ workflows:
         - helm-publish
         matrix:
           parameters:
-            environment: ["staging", "showcase", "production"]
+            environment: ["staging", "production"]
     - publish:
         name: publish-<< matrix.environment >>
         requires:
@@ -109,4 +109,4 @@ workflows:
         - helm-publish
         matrix:
           parameters:
-            environment: ["staging", "showcase", "production"]
+            environment: ["staging", "production"]
