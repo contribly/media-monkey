@@ -8,8 +8,8 @@ import io.micrometer.core.instrument.{MeterRegistry, Timer}
 
 import javax.inject.Inject
 import model.Track
-import play.api.Logger
 import services.mediainfo.{MediainfoInterpreter, MediainfoService}
+import utils.GlobalLogger.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.sys.process.{ProcessLogger, _}
@@ -18,7 +18,7 @@ class VideoService @Inject()(
                               val akkaSystem: ActorSystem, mediainfoService: MediainfoService, meterRegistry: MeterRegistry
                             ) extends MediainfoInterpreter with AvconvPadding {
 
-  val logger = ProcessLogger(l => Logger.debug("avconv: " + l))
+  val processLogger = ProcessLogger(l => logger.debug("avconv: " + l))
 
   private val thumbnailMeter = Timer.builder("contribly.mediamonkey.video_thumbnail")
     .description("MediaMonkey video thumbnail")
@@ -44,7 +44,7 @@ class VideoService @Inject()(
 
     implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
 
-    Logger.debug(s"Generating thumbnail for input file: ${input.getAbsolutePath}")
+    logger.debug(s"Generating thumbnail for input file: ${input.getAbsolutePath}")
 
     mediainfoService.mediainfo(input).flatMap { mediainfo =>
       val rotationToApply = rotation.getOrElse(0)
@@ -63,22 +63,22 @@ class VideoService @Inject()(
           Seq("-ss", "00:00:00", "-r", "1", "-an", "-vframes", "1", output.getAbsolutePath)
 
         val startTime = Instant.now
-        Logger.debug("ffmpeg command: " + avconvCmd)
+        logger.debug("ffmpeg command: " + avconvCmd)
 
         val sample = Timer.start(meterRegistry)
-        val process: Process = avconvCmd.run(logger)
+        val process: Process = avconvCmd.run(processLogger)
         val exitValue: Int = process.exitValue() // Blocks until the process completes
 
 
         if (exitValue == 0) {
           sample.stop(thumbnailMeter.withTags("size", s"${width.getOrElse(0)}x${height.getOrElse(0)}"))
-          Logger.debug("Thumbnail:" + outputSize + " - to: " + output.getAbsolutePath)
+          logger.debug("Thumbnail:" + outputSize + " - to: " + output.getAbsolutePath)
           val duration = Duration.between(startTime, Instant.now).toMillis
-          Logger.info(s"Thumbnail: $outputSize creation took $duration ms")
+          logger.info(s"Thumbnail: $outputSize creation took $duration ms")
           Some(output)
 
         } else {
-          Logger.warn("avconv process failed: " + avconvCmd)
+          logger.warn("avconv process failed: " + avconvCmd)
           output.delete
           None
         }
@@ -89,27 +89,27 @@ class VideoService @Inject()(
   def audio(input: File): Future[Option[File]] = {
     implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
 
-    Logger.debug(s"Extracting audio from input file: ${input.getAbsolutePath}")
+    logger.debug(s"Extracting audio from input file: ${input.getAbsolutePath}")
 
     mediainfoService.mediainfo(input).map { mediainfo =>
       val output = File.createTempFile("audio", "." + "wav")
 
       val avconvCmd = avconvInput(input, mediainfo) ++ Seq("-vn", output.getAbsolutePath)
       val startTime = Instant.now
-      Logger.debug("Processing video audio track")
-      Logger.debug("avconv command: " + avconvCmd.mkString(" "))
+      logger.debug("Processing video audio track")
+      logger.debug("avconv command: " + avconvCmd.mkString(" "))
 
       val sample = Timer.start(meterRegistry)
 
-      if (avconvCmd.run(logger).exitValue() == 0) {
+      if (avconvCmd.run(processLogger).exitValue() == 0) {
         sample.stop(audioMeter.withTags())
-        Logger.info("Transcoded audio output to: " + output.getAbsolutePath)
+        logger.info("Transcoded audio output to: " + output.getAbsolutePath)
         val duration = Duration.between(startTime, Instant.now).toMillis
-        Logger.info(s"Audio extraction took $duration ms")
+        logger.info(s"Audio extraction took $duration ms")
         Some(output)
 
       } else {
-        Logger.warn("avconv process failed: " + avconvCmd)
+        logger.warn("avconv process failed: " + avconvCmd)
         output.delete
         None
       }
@@ -126,7 +126,7 @@ class VideoService @Inject()(
                ): Future[Option[File]] = {
     implicit val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
 
-    Logger.debug(s"Transcoding input file: ${input.getAbsolutePath}")
+    logger.debug(s"Transcoding input file: ${input.getAbsolutePath}")
 
     mediainfoService.mediainfo(input).flatMap { mediainfo =>
       val rotationToApply = rotation.getOrElse(0)
@@ -140,22 +140,22 @@ class VideoService @Inject()(
           Seq("-b:a", "128k", "-strict", "experimental", outputFile.getAbsolutePath)
 
         val startTime = Instant.now
-        Logger.debug("avconv command: " + avconvCmd.mkString(" "))
+        logger.debug("avconv command: " + avconvCmd.mkString(" "))
 
         val sample = Timer.start(meterRegistry)
-        val process: Process = avconvCmd.run(logger)
+        val process: Process = avconvCmd.run(processLogger)
         val exitValue: Int = process.exitValue() // Blocks until the process completes
 
 
         if (exitValue == 0) {
           sample.stop(transcodeMeter.withTags("size", s"${outputSize.map(_._1).getOrElse(0)}x${outputSize.map(_._2).getOrElse(0)}"))
-          Logger.debug("Transcoded video output to: " + outputFile.getAbsolutePath)
+          logger.debug("Transcoded video output to: " + outputFile.getAbsolutePath)
           val duration = Duration.between(startTime, Instant.now).toMillis
-          Logger.info(s"Video Transcoding took $duration ms")
+          logger.info(s"Video Transcoding took $duration ms")
           Some(outputFile)
 
         } else {
-          Logger.warn("avconv process failed: " + avconvCmd)
+          logger.warn("avconv process failed: " + avconvCmd)
           outputFile.delete
           None
         }

@@ -1,14 +1,13 @@
 package services.images
 
-import java.io.File
 import akka.actor.ActorSystem
 import io.micrometer.core.instrument.{MeterRegistry, Timer}
-
-import javax.inject.Inject
 import org.im4java.core.{ConvertCmd, IMOperation, Info}
 import org.joda.time.DateTime
-import play.api.Logger
+import utils.GlobalLogger.logger
 
+import java.io.File
+import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
 class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegistry) {
@@ -49,7 +48,7 @@ class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegist
     implicit val imageProcessingExecutionContext = akkaSystem.dispatchers.lookup("image-processing-context")
     Future {
       val outputFile = File.createTempFile("image", "." + outputFormat)
-      Logger.debug("Applying ImageMagik operation to output file: " + outputFile.getAbsoluteFile)
+      logger.debug("Applying ImageMagik operation to output file: " + outputFile.getAbsoluteFile)
       try {
         val start = DateTime.now
         val cmd: ConvertCmd = new ConvertCmd()
@@ -58,12 +57,12 @@ class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegist
         sample.stop(cropMeter.withTags("size", s"${width}x$height"))
 
         val duration = DateTime.now.getMillis - start.getMillis
-        Logger.info("Completed ImageMagik crop operation " + Seq(width, height, x, y) + " output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
+        logger.info("Completed ImageMagik crop operation " + Seq(width, height, x, y) + " output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
         Some(outputFile)
 
       } catch {
         case e: Exception => {
-          Logger.error("Exception while executing IM operation", e)
+          logger.error("Exception while executing IM operation", e)
           outputFile.delete()
           None
         }
@@ -80,7 +79,7 @@ class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegist
     op.addImage()
 
     Future {
-      Logger.debug("Applying ImageMagik operation to input file: " + input.getAbsoluteFile + ": " + input.canRead)
+      logger.debug("Applying ImageMagik operation to input file: " + input.getAbsoluteFile + ": " + input.canRead)
 
       val outputFile = File.createTempFile("workingimage", "." + "jpg")
       try {
@@ -91,12 +90,12 @@ class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegist
         sample.stop(workResizeMeter.withTags())
 
         val duration = DateTime.now.getMillis - start.getMillis
-        Logger.info("Completed ImageMagik working image operation output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
+        logger.info("Completed ImageMagik working image operation output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
         Some(outputFile)
 
       } catch {
         case e: Exception => {
-          Logger.error("Exception while executing IM operation", e)
+          logger.error("Exception while executing IM operation", e)
           outputFile.delete()
           None
         }
@@ -151,7 +150,7 @@ class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegist
 
     Future {
       val outputFile = File.createTempFile("image", "." + outputFormat)
-      Logger.debug("Applying ImageMagik operation to output file: " + outputFile.getAbsoluteFile)
+      logger.debug("Applying ImageMagik operation to output file: " + outputFile.getAbsoluteFile)
       try {
         val start = DateTime.now
         val cmd = new ConvertCmd()
@@ -160,12 +159,12 @@ class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegist
         sample.stop(resizeMeter.withTags("size", s"${width.getOrElse(0)}x${height.getOrElse(0)}"))
 
         val duration = DateTime.now.getMillis - start.getMillis
-        Logger.info("Completed ImageMagik resize operation " + Seq(width, height, rotate, fill) + " output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
+        logger.info("Completed ImageMagik resize operation " + Seq(width, height, rotate, fill) + " output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
         Some(outputFile)
 
       } catch {
         case e: Exception => {
-          Logger.error("Exception while executing IM operation; may be recoverable", e)
+          logger.error("Exception while executing IM operation; may be recoverable", e)
           if (outputFile.canRead && outputFile.length() > 0) {
             Some(outputFile)
           } else {

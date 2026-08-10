@@ -2,14 +2,12 @@ package controllers
 
 import java.io.File
 import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorSystem
 import futures.Retry
+
 import javax.inject.Inject
 import model._
 import org.apache.commons.io.FileUtils
-import play.api.Logger
-import play.api.http.FileMimeTypes
 import play.api.libs.Files
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
@@ -20,6 +18,7 @@ import services.geo.ExifLocationExtractor
 import services.images.ImageService
 import services.mediainfo.{MediainfoInterpreter, MediainfoService}
 import services.tika.TikaService
+import utils.GlobalLogger.logger
 
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
@@ -83,7 +82,7 @@ class MetaController @Inject()(
           } { f =>
             val headers = Seq(("Content-Length", f.length().toString))
             Ok.sendFile(f, onClose = () => {
-              Logger.debug("Deleting tmp file after sending file: " + f)
+              logger.debug("Deleting tmp file after sending file: " + f)
               f.delete()
             }).withHeaders(headers: _*)
           }
@@ -183,7 +182,7 @@ class MetaController @Inject()(
             }
 
           }.getOrElse {
-            Logger.warn("Unsupported media type")
+            logger.warn("Unsupported media type")
             Future.successful(None)
           }
         }

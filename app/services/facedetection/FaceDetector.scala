@@ -1,16 +1,15 @@
 package services.facedetection
 
 import io.micrometer.core.instrument.{MeterRegistry, Timer}
+import model.Point
+import org.joda.time.DateTime
+import org.openimaj.image.ImageUtilities
+import org.openimaj.image.processing.face.detection.HaarCascadeDetector
+import utils.GlobalLogger.logger
 
 import java.io.File
 import javax.inject.Inject
-import model.Point
-import org.joda.time.{DateTime, Duration}
-import org.openimaj.image.ImageUtilities
-import org.openimaj.image.processing.face.detection.HaarCascadeDetector
-import play.api.Logger
-
-import scala.collection.JavaConversions._
+import scala.collection.convert.ImplicitConversions._
 import scala.concurrent.{ExecutionContext, Future}
 
 class FaceDetector @Inject()(meterRegistry: MeterRegistry) {
@@ -28,12 +27,12 @@ class FaceDetector @Inject()(meterRegistry: MeterRegistry) {
         BigDecimal.decimal(percentage).setScale(1, BigDecimal.RoundingMode.HALF_UP).toDouble
       }
 
-      Logger.debug("Detecting faces in file: " + source.getAbsolutePath)
+      logger.debug("Detecting faces in file: " + source.getAbsolutePath)
       val start = DateTime.now()
 
       val sample = Timer.start(meterRegistry)
       val fImage = ImageUtilities.readF(source)
-      val detected = new HaarCascadeDetector().detectFaces(fImage).map { r =>
+      val detected = new HaarCascadeDetector().detectFaces(fImage).toSeq.map { r =>
         val b = r.getBounds()
 
         val topLeftBound = Point(asPercentage(b.getTopLeft.getX, fImage.width), asPercentage(b.getTopLeft.getY, fImage.height))
@@ -43,7 +42,7 @@ class FaceDetector @Inject()(meterRegistry: MeterRegistry) {
       }
       sample.stop(meter.withTags())
 
-//      Logger.info("Detected " + detected.size + " in " + new Duration(start, DateTime.now))
+//      logger.info("Detected " + detected.size + " in " + new Duration(start, DateTime.now))
       detected
     }
   }

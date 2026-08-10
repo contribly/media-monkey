@@ -7,6 +7,7 @@ import org.apache.commons.io.FileUtils
 import org.apache.tika.Tika
 import play.api.Logger
 import play.api.libs.Files.TemporaryFileCreator
+import utils.GlobalLogger.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.sys.process.{ProcessLogger, _}
@@ -21,7 +22,7 @@ class ExiftoolService @Inject()(val temporaryFileCreator: TemporaryFileCreator) 
         Some(tika.detect(f))
       } catch {
         case e =>
-          Logger.error("Could not detect file media type", e)
+          logger.error("Could not detect file media type", e)
           None
       }
     }
@@ -41,17 +42,17 @@ class ExiftoolService @Inject()(val temporaryFileCreator: TemporaryFileCreator) 
       }
 
       val cmd = Seq("exiftool") ++ tagArguments.map(_._1) :+ outputFile.file.getAbsolutePath
-      Logger.debug("Exiftool command: " + cmd)
+      logger.debug("Exiftool command: " + cmd)
 
       val out = new StringBuilder()
-      val logger = ProcessLogger(l => {
+      val processLogger = ProcessLogger(l => {
         out.append(l)
       })
 
-      val process = cmd.run(logger)
+      val process = cmd.run(processLogger)
       val exitValue = process.exitValue()
 
-      Logger.debug("Clearing down " + tagArguments.size + " temp files after exiftool")
+      logger.debug("Clearing down " + tagArguments.size + " temp files after exiftool")
       tagArguments.map { ta =>
         ta._2.file.delete()
       }
@@ -60,13 +61,13 @@ class ExiftoolService @Inject()(val temporaryFileCreator: TemporaryFileCreator) 
         Some(outputFile.file)
 
       } else {
-        Logger.warn("exiftool process failed for file: " + f.getAbsolutePath + " / " + out.mkString)
+        logger.warn("exiftool process failed for file: " + f.getAbsolutePath + " / " + out.mkString)
         None
       }
 
     }.recover { // TODO clear down files
       case t: Throwable =>
-        Logger.error("exiftool call failed with an exception", t)
+        logger.error("exiftool call failed with an exception", t)
         None
       case _ =>
         None

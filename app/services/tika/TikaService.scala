@@ -6,11 +6,10 @@ import org.apache.tika.metadata.Metadata
 import org.apache.tika.mime.MimeTypes
 import org.apache.tika.parser.AutoDetectParser
 import org.xml.sax.helpers.DefaultHandler
-import play.api.Logger
+import utils.GlobalLogger.logger
 
 import java.io.File
-import java.nio.file.{Files, Paths}
-import java.time.{Duration, Instant}
+import java.nio.file.Files
 import javax.inject.Inject
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
@@ -36,7 +35,7 @@ class TikaService @Inject() (akkaSystem: ActorSystem, meterRegistry: MeterRegist
         Some(result)
       } catch {
         case e: Exception =>
-          Logger.warn("Could not extract media metadata", e)
+          logger.warn("Could not extract media metadata", e)
           None
       } finally {
         input.close();
