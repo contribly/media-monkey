@@ -18,7 +18,8 @@ libraryDependencies += "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8
 libraryDependencies += "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.19.0"
 libraryDependencies += "com.fasterxml.jackson.module" % "jackson-module-parameter-names" % "2.19.0"
 libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.19.0"
-libraryDependencies += "org.im4java" % "im4java" % "1.4.0"
+libraryDependencies += "org.apache.logging.log4j" % "log4j-to-jul" % "2.24.3"
+libraryDependencies += "app.photofox.vips-ffm" % "vips-ffm-core" % "1.9.8"
 libraryDependencies += "org.openimaj" % "core" % "1.3.6"
 libraryDependencies += "org.openimaj" % "core-image" % "1.3.6"
 libraryDependencies += "org.openimaj" % "faces" % "1.3.6"
@@ -53,6 +54,6 @@ dockerRepository := Option("eu.gcr.io/contribly-dev")
 dockerCommands ++= Seq(
     Cmd("USER", "root"),
     Cmd("RUN", "pacman", "-Syu", "--noconfirm"),
-    Cmd("RUN", "pacman", "-S", "--noconfirm", "jre25-openjdk-headless", "imagemagick", "ffmpeg", "mediainfo", "perl-image-exiftool", "extra/libwebp"),
+    Cmd("RUN", "pacman", "-S", "--noconfirm", "jre25-openjdk-headless", "imagemagick", "ffmpeg", "mediainfo", "perl-image-exiftool", "extra/libwebp", "libvips=8.18.5-1"),
     Cmd("RUN", "ln", "-s", "/usr/bin/vendor_perl/exiftool", "/usr/bin/exiftool")
 )
