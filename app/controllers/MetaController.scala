@@ -7,13 +7,11 @@ import futures.Retry
 
 import javax.inject.Inject
 import model._
-import org.apache.commons.io.FileUtils
 import play.api.libs.Files
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
 import play.api.mvc.{Action, BaseController, ControllerComponents, MultipartFormData}
 import services.exiftool.ExiftoolService
-import services.facedetection.FaceDetector
 import services.geo.ExifLocationExtractor
 import services.images.ImageService
 import services.mediainfo.{MediainfoInterpreter, MediainfoService}
@@ -28,8 +26,7 @@ class MetaController @Inject()(
     val tikaService: TikaService,
     imageService: ImageService,
     exiftoolService: ExiftoolService,
-    val mediainfoService: MediainfoService,
-    faceDetector: FaceDetector
+    val mediainfoService: MediainfoService
 )(implicit val controllerComponents: ControllerComponents, val akkaSystem: ActorSystem)
     extends BaseController
     with MediainfoInterpreter
@@ -91,6 +88,7 @@ class MetaController @Inject()(
     }
   }
 
+  @deprecated("For deletion")
   def defectFaces(callback: String): Action[Files.TemporaryFile] = Action.async(parse.temporaryFile) { request =>
 
     def asJson(dfs: Seq[DetectedFace]): JsValue = {
@@ -100,25 +98,9 @@ class MetaController @Inject()(
       Json.toJson(dfs)
     }
 
-    val sourceFile = request.body
-
-    val buffer = File.createTempFile("buffer", "." + "jpg")
-    FileUtils.copyFile(sourceFile.file, buffer)
-
     implicit val executionContext = akkaSystem.dispatchers.lookup("face-detection-processing-context")
 
-    imageService.workingSize(buffer).map { wo =>
-      buffer.delete()
-
-      wo.map { w =>
-        faceDetector.detectFaces(w).map { dfs =>
-          ws.url(callback).withRequestTimeout(thirtySeconds).
-            post(asJson(dfs)).map { rp =>
-          }
-          w.delete()
-        }
-      }
-    } // TODO recover and delete buffer on error
+    ws.url(callback).withRequestTimeout(thirtySeconds).post(asJson(Seq.empty)).map { _ => }
 
     Future.successful(Accepted(JsonAccepted))
   }

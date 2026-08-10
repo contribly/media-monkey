@@ -4,10 +4,6 @@ lazy val `media-monkey` = (project in file(".")).enablePlugins(PlayScala)
 
 scalaVersion := "2.13.18"
 
-resolvers += "openimaj" at "https://maven.openimaj.org"
-resolvers += "billylieurance-net" at "https://www.billylieurance.net/maven2"
-resolvers += "gael" at "https://repository.gael-systems.com/repository/public"
-
 libraryDependencies += guice
 libraryDependencies += ws
 
@@ -15,14 +11,12 @@ libraryDependencies += "org.apache.tika" % "tika-core" % "2.9.4" exclude("org.sl
 libraryDependencies += "org.apache.tika" % "tika-parsers-standard-package" % "2.9.4" exclude("org.slf4j", "jcl-over-slf4j") exclude("org.slf4j", "slf4j-api")
 libraryDependencies += "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % "2.19.0"
 libraryDependencies += "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8" % "2.19.0"
+libraryDependencies += "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % "2.19.0"
 libraryDependencies += "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.19.0"
 libraryDependencies += "com.fasterxml.jackson.module" % "jackson-module-parameter-names" % "2.19.0"
 libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.19.0"
 libraryDependencies += "org.apache.logging.log4j" % "log4j-to-jul" % "2.24.3"
 libraryDependencies += "app.photofox.vips-ffm" % "vips-ffm-core" % "1.9.8"
-libraryDependencies += "org.openimaj" % "core" % "1.3.6"
-libraryDependencies += "org.openimaj" % "core-image" % "1.3.6"
-libraryDependencies += "org.openimaj" % "faces" % "1.3.6"
 libraryDependencies += "commons-io" % "commons-io" % "2.5"
 libraryDependencies += "io.micrometer" % "micrometer-registry-prometheus" % "1.15.0"
 libraryDependencies += "io.prometheus" % "prometheus-metrics-exporter-httpserver" % "1.3.8"

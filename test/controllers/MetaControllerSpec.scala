@@ -45,8 +45,7 @@ class MetaControllerSpec extends UnitSpec {
       mockTikaService,
       mockImageService,
       mockExiftoolService,
-      mockMediaInfoService,
-      mockFaceDetector
+      mockMediaInfoService
     )
   }
 }
