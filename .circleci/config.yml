@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   build-and-test:
     docker:
-    - image: europe-west2-docker.pkg.dev/contribly-dev/contribly-public/circleci-java-builder:11.0.28-2025.10
+    - image: europe-west2-docker.pkg.dev/contribly-dev/contribly-public/circleci-java-builder:25.0.4-2026.08
     resource_class: medium
     environment:
       IMAGE_NAME: eu.gcr.io/contribly-dev/media-monkey

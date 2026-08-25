@@ -1,24 +1,22 @@
 package controllers
 
-import java.io.File
-import java.util.concurrent.TimeUnit
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.FileIO
 import futures.Retry
-
-import javax.inject.Inject
 import org.joda.time.DateTime
-import play.api.Logger
-import play.api.http.{FileMimeTypes, HttpEntity}
+import play.api.http.FileMimeTypes
 import play.api.libs.Files
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
-import play.api.mvc.{AbstractController, Action, BaseController, BodyParsers, Controller, ControllerComponents, Result}
-import play.libs.ws.DefaultBodyWritables
+import play.api.mvc._
 import services.images.ImageService
 import services.mediainfo.{MediainfoInterpreter, MediainfoService}
 import services.video.VideoService
+import utils.GlobalLogger.logger
 
+import java.io.File
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future}
@@ -29,8 +27,8 @@ class Application @Inject()(
     videoService: VideoService,
     imageService: ImageService,
     mediainfoService: MediainfoService
-)(implicit fileMimeTypes: FileMimeTypes, val controllerComponents: ControllerComponents)
-    extends BaseController
+)(implicit fileMimeTypes: FileMimeTypes)
+    extends InjectedController
     with Retry
     with MediainfoInterpreter
     with JsonResponses
@@ -105,7 +103,7 @@ class Application @Inject()(
     }
   }
 
-  def videoAudio(callback: Option[String]) = Action.async(BodyParsers.parse.temporaryFile) { request =>
+  def videoAudio(callback: Option[String]) = Action.async(parse.temporaryFile) { request =>
     val sourceFile = request.body
 
     val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
@@ -122,7 +120,7 @@ class Application @Inject()(
   }
 
 
-  def videoTranscode(width: Option[Int], height: Option[Int], callback: Option[String], rotate: Option[Int], aspectRatio: Option[Double]) = Action.async(BodyParsers.parse.temporaryFile) { request =>
+  def videoTranscode(width: Option[Int], height: Option[Int], callback: Option[String], rotate: Option[Int], aspectRatio: Option[Double]) = Action.async(parse.temporaryFile) { request =>
     val sourceFile = request.body
 
     val videoProcessingExecutionContext: ExecutionContext = akkaSystem.dispatchers.lookup("video-processing-context")
@@ -191,11 +189,11 @@ class Application @Inject()(
           UnprocessableEntity(Json.toJson("Could not process file"))
 
         } { r =>
-          Logger.debug("Sending file")
+          logger.debug("Sending file")
 
           val of: OutputFormat = r._3
           Ok.sendFile(r._1, onClose = () => {
-            Logger.debug("Deleting tmp file after sending file: " + r._1)
+            logger.debug("Deleting tmp file after sending file: " + r._1)
             r._1.delete()
           }).withHeaders(dimensionHeadersFor(r._2): _*)
         }
@@ -206,7 +204,7 @@ class Application @Inject()(
 
       eventualResult.map { ro =>
         ro.fold {
-          Logger.warn("Failed to process file; not calling back. Callback:" + c)
+          logger.warn("Failed to process file; not calling back. Callback:" + c)
 
         } { r =>
           val startTime = DateTime.now
@@ -219,25 +217,25 @@ class Application @Inject()(
             val duration = new org.joda.time.Duration(startTime, DateTime.now)
             rp.status match {
               case 202 =>
-                Logger.trace("Response from callback url " + c + ": " + rp.status + " after " + duration.toStandardSeconds.toStandardDays)
+                logger.trace("Response from callback url " + c + ": " + rp.status + " after " + duration.toStandardSeconds.toStandardDays)
               case _ =>
-                Logger.warn("Unexpected response from callback url " + c + ": " + rp.status + " after " + duration.toStandardSeconds.toStandardDays + ": " + rp.body)
+                logger.warn("Unexpected response from callback url " + c + ": " + rp.status + " after " + duration.toStandardSeconds.toStandardDays + ": " + rp.body)
             }
-            Logger.debug("Deleting tmp file after calling back: " + r._1)
+            logger.debug("Deleting tmp file after calling back: " + r._1)
             r._1.delete()
 
           }.recover {
             case c: java.net.ConnectException =>
-              Logger.warn("Could not connect to callback url '" + c + "' caller has gone away?. Cleaning up tmp file: " + r._1)
+              logger.warn("Could not connect to callback url '" + c + "' caller has gone away?. Cleaning up tmp file: " + r._1)
               r._1.delete()
             case t: Throwable =>
-              Logger.error("Media callback failed. Cleaning up tmp file: " + r._1, t)
+              logger.error("Media callback failed. Cleaning up tmp file: " + r._1, t)
               r._1.delete()
           }
         }
       }(ec)
 
-      Logger.info("Returning accepted")
+      logger.info("Returning accepted")
       Future.successful(Accepted(JsonAccepted))
     }
 

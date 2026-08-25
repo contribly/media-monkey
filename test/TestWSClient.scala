@@ -4,7 +4,6 @@ import play.api.libs.ws.WSClient
 import play.api.libs.ws.ahc.AhcWSClient
 
 trait TestWSClient {
-  implicit lazy val system = ActorSystem("tests")
-  implicit val materializer = ActorMaterializer()
+  implicit lazy val system: ActorSystem = ActorSystem("tests")
   val ws = AhcWSClient()
 }

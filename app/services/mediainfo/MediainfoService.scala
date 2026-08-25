@@ -1,28 +1,27 @@
 package services.mediainfo
 
-import java.io.File
-
-import javax.inject.Inject
 import model.Track
-import play.api.Logger
+import utils.GlobalLogger.logger
 
-import scala.concurrent.Future
+import java.io.File
+import javax.inject.Inject
 import scala.concurrent.ExecutionContext.Implicits.{global => ec}
+import scala.concurrent.Future
 import scala.sys.process.{ProcessLogger, _}
 
 class MediainfoService @Inject()(val mediainfoParser: MediainfoParser) {
 
   def mediainfo(f: File): Future[Option[Seq[Track]]] = {
     Future {
-      Logger.debug(f.toString)
+      logger.debug(f.toString)
       val mediainfoCmd = Seq("mediainfo", "--Output=XML", f.getAbsolutePath)
 
       val out: StringBuilder = new StringBuilder()
-      val logger: ProcessLogger = ProcessLogger(l => {
+      val processLogger: ProcessLogger = ProcessLogger(l => {
         out.append(l)
       })
 
-      val process: Process = mediainfoCmd.run(logger)
+      val process: Process = mediainfoCmd.run(processLogger)
 
       val exitValue: Int = process.exitValue() // Blocks until the process completes
 
@@ -30,12 +29,12 @@ class MediainfoService @Inject()(val mediainfoParser: MediainfoParser) {
         Some(mediainfoParser.parse(out.mkString))
 
       } else {
-        Logger.warn("mediainfo process failed")
+        logger.warn("mediainfo process failed")
         None
       }
     }.recover {
       case t: Throwable =>
-        Logger.error("exiftool call failed", t)
+        logger.error("exiftool call failed", t)
         None
     }
   }

@@ -1,14 +1,14 @@
 package services.images
 
-import java.io.File
 import akka.actor.ActorSystem
 import io.micrometer.core.instrument.{MeterRegistry, Timer}
-
-import javax.inject.Inject
-import org.im4java.core.{ConvertCmd, IMOperation, Info}
 import org.joda.time.DateTime
-import play.api.Logger
+import utils.GlobalLogger.logger
+import app.photofox.vipsffm._
+import app.photofox.vipsffm.enums._
 
+import java.io.File
+import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
 class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegistry) {
@@ -30,40 +30,37 @@ class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegist
     implicit val imageProcessingExecutionContext = akkaSystem.dispatchers.lookup("image-processing-context")
 
     Future {
-      val imageInfo = new Info(input.getAbsolutePath, true)
-      (imageInfo.getImageWidth, imageInfo.getImageHeight)
+      var dimensions: (Int, Int) = null
+      Vips.run { arena =>
+        val image = VImage.newFromFile(arena, input.getAbsolutePath)
+        dimensions = (image.getWidth, image.getHeight)
+      }
+      dimensions
     }
   }
 
   def cropImage(input: File, width: Int, height: Int, x: Int, y: Int, outputFormat: String): Future[Option[File]] = {
-
-    def imCropOperation(width: Int, height: Int, x: Int, y: Int): IMOperation = {
-        val op = new IMOperation()
-        addInputImageUsingFirstLayer(op)
-        op.crop(width, height, x, y)
-        op.strip()
-        op.addImage()
-        op
-    }
-
     implicit val imageProcessingExecutionContext = akkaSystem.dispatchers.lookup("image-processing-context")
     Future {
       val outputFile = File.createTempFile("image", "." + outputFormat)
-      Logger.debug("Applying ImageMagik operation to output file: " + outputFile.getAbsoluteFile)
+      logger.debug("Applying vips operation to output file: " + outputFile.getAbsoluteFile)
       try {
         val start = DateTime.now
-        val cmd: ConvertCmd = new ConvertCmd()
         val sample = Timer.start(meterRegistry)
-        cmd.run(imCropOperation(width, height, x, y), input.getAbsolutePath, outputFile.getAbsolutePath())
+        Vips.run { arena =>
+          val image = VImage.newFromFile(arena, input.getAbsolutePath, VipsOption.Boolean("autorotate", true))
+          val cropped = image.extractArea(x, y, width, height)
+          cropped.writeToFile(outputFile.getAbsolutePath, VipsOption.Boolean("strip", true))
+        }
         sample.stop(cropMeter.withTags("size", s"${width}x$height"))
 
         val duration = DateTime.now.getMillis - start.getMillis
-        Logger.info("Completed ImageMagik crop operation " + Seq(width, height, x, y) + " output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
+        logger.info("Completed vips crop operation " + Seq(width, height, x, y) + " output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
         Some(outputFile)
 
       } catch {
         case e: Exception => {
-          Logger.error("Exception while executing IM operation", e)
+          logger.error("Exception while executing vips operation", e)
           outputFile.delete()
           None
         }
@@ -73,99 +70,98 @@ class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegist
   }
 
   def workingSize(input: File)(implicit ec: ExecutionContext): Future[Option[File]] = {
-    val op = new IMOperation()
-    addInputImageUsingFirstLayer(op)
-    op.autoOrient()
-    op.resize(null, null, "800>")
-    op.addImage()
-
     Future {
-      Logger.debug("Applying ImageMagik operation to input file: " + input.getAbsoluteFile + ": " + input.canRead)
+      logger.debug("Applying vips operation to input file: " + input.getAbsoluteFile + ": " + input.canRead)
 
       val outputFile = File.createTempFile("workingimage", "." + "jpg")
       try {
         val start = DateTime.now
-        val cmd: ConvertCmd = new ConvertCmd()
         val sample = Timer.start(meterRegistry)
-        cmd.run(op, input.getAbsolutePath, outputFile.getAbsolutePath())
+        Vips.run { arena =>
+          val thumb = VImage.thumbnail(arena, input.getAbsolutePath, 800, VipsOption.Boolean("auto-rotate", true))
+          thumb.writeToFile(outputFile.getAbsolutePath, VipsOption.Boolean("strip", true))
+        }
         sample.stop(workResizeMeter.withTags())
 
         val duration = DateTime.now.getMillis - start.getMillis
-        Logger.info("Completed ImageMagik working image operation output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
+        logger.info("Completed vips working image operation output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
         Some(outputFile)
 
       } catch {
         case e: Exception => {
-          Logger.error("Exception while executing IM operation", e)
+          logger.error("Exception while executing vips operation", e)
           outputFile.delete()
           None
         }
-
       }
     }
   }
 
   def resizeImage(input: File, width: Option[Int], height: Option[Int], rotate: Double, outputFormat: String, fill: Boolean, gravity: Option[String]): Future[Option[File]] = {
-
-    def imResizeOperation(width: Option[Int], height: Option[Int], rotate: Double, fill: Boolean): IMOperation = {
-
-      val PermittedGravities = Set("North", "Center")
-      val g = gravity.flatMap(g => PermittedGravities.find(i => i == g)).getOrElse("Center")
-
-      if (fill) {
-        val op = new IMOperation()
-        addInputImageUsingFirstLayer(op)
-        op.autoOrient()
-        op.rotate(rotate)
-
-        width.flatMap { w =>
-          height.map { h =>
-            op.resize(w, h, "^")
-            op.gravity(g)
-            op.extent(w, h)
-          }
-        }
-        op.strip()
-        op.addImage()
-        op
-
-      } else {
-        val op = new IMOperation()
-        addInputImageUsingFirstLayer(op)
-        op.autoOrient()
-        op.rotate(rotate)
-
-        width.flatMap { w =>
-          height.map { h =>
-            op.resize(w, h)
-          }
-        }
-
-        op.strip()
-        op.addImage()
-        op
-      }
-    }
-
     implicit val imageProcessingExecutionContext = akkaSystem.dispatchers.lookup("image-processing-context")
 
     Future {
       val outputFile = File.createTempFile("image", "." + outputFormat)
-      Logger.debug("Applying ImageMagik operation to output file: " + outputFile.getAbsoluteFile)
+      logger.debug("Applying vips operation to output file: " + outputFile.getAbsoluteFile)
       try {
         val start = DateTime.now
-        val cmd = new ConvertCmd()
         val sample = Timer.start(meterRegistry)
-        cmd.run(imResizeOperation(width, height, rotate, fill), input.getAbsolutePath, outputFile.getAbsolutePath())
+
+        Vips.run { arena =>
+          val cropStrategy = if (fill) {
+            gravity match {
+              case Some("North") => VipsInteresting.INTERESTING_LOW
+              case _ => VipsInteresting.INTERESTING_ATTENTION
+            }
+          } else {
+            VipsInteresting.INTERESTING_NONE
+          }
+
+          val image = if (rotate != 0) {
+            val loaded = VImage.newFromFile(arena, input.getAbsolutePath, VipsOption.Boolean("autorotate", true))
+            loaded.rotate(rotate)
+          } else {
+            null
+          }
+
+          val resizable = width.isDefined && height.isDefined
+          val finalImage = if (image == null) {
+            if (resizable) {
+              val w = width.get
+              val h = height.get
+              if (fill) {
+                VImage.thumbnail(arena, input.getAbsolutePath, w, VipsOption.Int("height", h), VipsOption.Enum("crop", cropStrategy), VipsOption.Boolean("auto-rotate", true))
+              } else {
+                VImage.thumbnail(arena, input.getAbsolutePath, w, VipsOption.Int("height", h), VipsOption.Boolean("auto-rotate", true))
+              }
+            } else {
+              VImage.newFromFile(arena, input.getAbsolutePath, VipsOption.Boolean("autorotate", true))
+            }
+          } else {
+            if (resizable) {
+              val w = width.get
+              val h = height.get
+              if (fill) {
+                image.thumbnailImage(w, VipsOption.Int("height", h), VipsOption.Enum("crop", cropStrategy))
+              } else {
+                image.thumbnailImage(w, VipsOption.Int("height", h))
+              }
+            } else {
+              image
+            }
+          }
+          finalImage.writeToFile(outputFile.getAbsolutePath, VipsOption.Boolean("strip", true))
+        }
+
         sample.stop(resizeMeter.withTags("size", s"${width.getOrElse(0)}x${height.getOrElse(0)}"))
 
         val duration = DateTime.now.getMillis - start.getMillis
-        Logger.info("Completed ImageMagik resize operation " + Seq(width, height, rotate, fill) + " output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
+        logger.info("Completed vips resize operation " + Seq(width, height, rotate, fill) + " output to: " + outputFile.getAbsolutePath() + " in " + duration + "ms")
         Some(outputFile)
 
       } catch {
         case e: Exception => {
-          Logger.error("Exception while executing IM operation; may be recoverable", e)
+          logger.error("Exception while executing vips operation; may be recoverable", e)
           if (outputFile.canRead && outputFile.length() > 0) {
             Some(outputFile)
           } else {
@@ -176,10 +172,6 @@ class ImageService @Inject()(akkaSystem: ActorSystem, meterRegistry: MeterRegist
       }
     }
 
-  }
-
-  private def addInputImageUsingFirstLayer(op: IMOperation): Unit = {
-    op.addImage("[0]")
   }
 
 }

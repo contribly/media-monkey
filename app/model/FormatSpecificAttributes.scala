@@ -1,6 +1,6 @@
 package model
 
-import play.api.libs.json.Json
+import play.api.libs.json.{Json, OFormat}
 
 case class FormatSpecificAttributes(
     width: Option[Int],
@@ -11,5 +11,5 @@ case class FormatSpecificAttributes(
 )
 
 object FormatSpecificAttributes {
-  implicit val formatSpecificAttributesFormat = Json.format[FormatSpecificAttributes]
+  implicit val formatSpecificAttributesFormat: OFormat[FormatSpecificAttributes] = Json.format[FormatSpecificAttributes]
 }
