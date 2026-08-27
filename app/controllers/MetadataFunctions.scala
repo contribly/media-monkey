@@ -80,17 +80,22 @@ trait MetadataFunctions extends MediainfoInterpreter {
     Summary(`type`, contentType, tikaService.suggestedFileExtension(contentType), md5Hash)
   }
 
+  private def mediaTypeFromTracks(file: File): Future[Option[MediaType]] = {
+    mediainfoService.mediainfo(file).map { tracks =>
+      tracks.flatMap { ts =>
+        if (ts.exists(_.`type` == "Video")) Some(MediaType.Video)
+        else if (ts.exists(_.`type` == "Audio")) Some(MediaType.Audio)
+        else None
+      }
+    }
+  }
+
   def resolveMediaType(contentType: String, file: File): Future[Option[MediaType]] = {
     inferMediaTypeFromContentType(contentType) match {
+      // A video container can carry an audio only recording, so only the tracks can tell them apart.
+      case Some(MediaType.Video) => mediaTypeFromTracks(file).map(_.orElse(Some(MediaType.Video)))
       case Some(t) => Future.successful(Some(t))
-      case None if contentType == "application/x-matroska" =>
-        mediainfoService.mediainfo(file).map { tracks =>
-          tracks.flatMap { ts =>
-            if (ts.exists(_.`type` == "Video")) Some(MediaType.Video)
-            else if (ts.exists(_.`type` == "Audio")) Some(MediaType.Audio)
-            else None
-          }
-        }
+      case None if contentType == "application/x-matroska" => mediaTypeFromTracks(file)
       case None => Future.successful(None)
     }
   }

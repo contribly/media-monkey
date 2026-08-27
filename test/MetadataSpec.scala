@@ -118,6 +118,19 @@ class MetadataSpec extends Specification with ResponseToFileWriter with TestWSCl
     }
   }
 
+  "can detect audio in a video container by probing tracks" in {
+    running(TestServer(port)) {
+      val eventualResponse = ws.url(localUrl + "/meta").post(new File("test/resources/audio.mp4"))
+
+      val response = Await.result(eventualResponse, thirtySeconds)
+
+      response.status must equalTo(OK)
+      val jsonResponse = Json.parse(response.body)
+      (jsonResponse \ "summary" \ "contentType").toOption.get.as[String] must equalTo("video/mp4")
+      (jsonResponse \ "summary" \ "type").toOption.get.as[String] must equalTo("audio")
+    }
+  }
+
   "can detect video in a webm/matroska container by probing tracks" in {
     running(TestServer(port)) {
       val eventualResponse = ws.url(localUrl + "/meta").post(new File("test/resources/video.webm"))
