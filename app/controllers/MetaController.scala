@@ -121,7 +121,7 @@ class MetaController @Inject()(
         eventualContentType.flatMap { contentType =>
 
           contentType.map { ct =>
-            val summary = summarise(ct, sourceFile.path.toFile)
+            summariseAsync(ct, sourceFile.path.toFile).flatMap { summary =>
 
             summary.`type`.fold {
               sourceFile.delete
@@ -161,6 +161,7 @@ class MetaController @Inject()(
                 Some(Metadata(summary = summary, formatSpecificAttributes = contentTypeSpecificAttributes, metadata = Some(combinedMetadata), location = location))
               }
 
+            }
             }
 
           }.getOrElse {

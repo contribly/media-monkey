@@ -80,6 +80,31 @@ trait MetadataFunctions extends MediainfoInterpreter {
     Summary(`type`, contentType, tikaService.suggestedFileExtension(contentType), md5Hash)
   }
 
+  def resolveMediaType(contentType: String, file: File): Future[Option[MediaType]] = {
+    inferMediaTypeFromContentType(contentType) match {
+      case Some(t) => Future.successful(Some(t))
+      case None if contentType == "application/x-matroska" =>
+        mediainfoService.mediainfo(file).map { tracks =>
+          tracks.flatMap { ts =>
+            if (ts.exists(_.`type` == "Video")) Some(MediaType.Video)
+            else if (ts.exists(_.`type` == "Audio")) Some(MediaType.Audio)
+            else None
+          }
+        }
+      case None => Future.successful(None)
+    }
+  }
+
+  def summariseAsync(contentType: String, file: File): Future[Summary] = {
+    resolveMediaType(contentType, file).map { `type` =>
+      val stream: FileInputStream = new FileInputStream(file)
+      val md5Hash = DigestUtils.md5Hex(stream)
+      stream.close()
+
+      Summary(`type`, contentType, tikaService.suggestedFileExtension(contentType), md5Hash)
+    }
+  }
+
   def parseExifRotationString(i: String): Option[Int] = {
     val ExifRotations = Map[String, Int](
       "Right side, top (Rotate 90 CW)" -> 90,
