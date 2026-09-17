@@ -45,9 +45,11 @@ enablePlugins(DockerPlugin)
 import com.typesafe.sbt.packager.docker._
 dockerBaseImage := "archlinux/archlinux:latest"
 dockerRepository := Option("eu.gcr.io/contribly-dev")
+// Frozen to Arch Archive snapshot; libvips pinned to 8.18.5-1 for vips-ffm-core compatibility.
 dockerCommands ++= Seq(
     Cmd("USER", "root"),
-    Cmd("RUN", "pacman", "-Syu", "--noconfirm"),
+    Cmd("RUN", "echo 'Server=https://archive.archlinux.org/repos/2026/08/20/$repo/os/$arch' > /etc/pacman.d/mirrorlist"),
+    Cmd("RUN", "pacman", "-Syyu", "--noconfirm"),
     Cmd("RUN", "pacman", "-S", "--noconfirm", "jre25-openjdk-headless", "imagemagick", "ffmpeg", "mediainfo", "perl-image-exiftool", "extra/libwebp", "libvips=8.18.5-1"),
     Cmd("RUN", "ln", "-s", "/usr/bin/vendor_perl/exiftool", "/usr/bin/exiftool")
 )
